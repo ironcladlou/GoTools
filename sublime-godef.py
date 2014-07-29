@@ -5,10 +5,11 @@ class GodefCommand(sublime_plugin.WindowCommand):
     # Load custom settings
     settings = sublime.load_settings("sublime-godef.sublime-settings")
     self.gopath = settings.get("gopath", os.getenv('GOPATH'))
+    self.debug_enabled = settings.get("debug_enabled", False)
 
     # Validate GOPATH
     if self.gopath is None:
-      self.log("ERROR: no GOPATH defined")
+      self.error("no GOPATH defined")
       return
 
     self.log("using gopath " + self.gopath)
@@ -25,13 +26,15 @@ class GodefCommand(sublime_plugin.WindowCommand):
     sublime.set_timeout_async(self.godef, 0)
 
   def godef(self):
+    # Validate godef itself
     godef_bin = os.path.join(self.gopath, "bin", "godef")
 
     if not os.path.isfile(godef_bin):
-      self.log("ERROR: godef not found at " + godef_bin)
+      self.error("godef not found at " + godef_bin)
       return
 
     try:
+      # Fork the godef call and capture the output
       args = [godef_bin, "-f", self.filename, "-o", str(self.offset)]
       self.log("spawning " + " ".join(args))
 
@@ -39,9 +42,14 @@ class GodefCommand(sublime_plugin.WindowCommand):
       env["GOPATH"] = self.gopath
       output = subprocess.check_output(args, stderr=subprocess.STDOUT, env=env)
     except subprocess.CalledProcessError as e:
-      self.log("no definition found")
+      self.status("no definition found")
     else:
       location = output.decode("utf-8").rstrip().split(":")
+
+      if len(location) != 3:
+        self.log("DEBUG: malformed location from godef: " + str(location))
+        self.status("invalid location from godef; check console log")
+        return
 
       # godef is sometimes returning this junk as part of the output,
       # so just scrub it away
@@ -50,7 +58,7 @@ class GodefCommand(sublime_plugin.WindowCommand):
       col = int(location[2])
 
       if not os.path.isfile(file):
-        self.log("ERROR: file indicated by godef not found: " + file)
+        self.error("file indicated by godef not found: " + file)
         return
 
       self.log("opening definition at " + file + ":" + str(row) + ":" + str(col))
@@ -65,11 +73,18 @@ class GodefCommand(sublime_plugin.WindowCommand):
       view.show(pt)
     else:
       if retries < 10:
-        sublime.status_message('sublime-godef: waiting for file to load...')
+        self.status('sublime-godef: waiting for file to load...')
         sublime.set_timeout(lambda: self.show_location(view, row, col, retries+1), 10)
       else:
-        sublime.status_message("sublime-godef: timed out waiting for file load")
-        self.log("ERROR: timed out waiting for file load - giving up")
+        self.status("sublime-godef: timed out waiting for file load")
+        self.error("timed out waiting for file load - giving up")
 
   def log(self, msg):
-    print("sublime-godef: " + msg)
+    if self.debug_enabled:
+      print("sublime-godef: " + msg)
+
+  def error(self, msg):
+    print("sublime-godef: ERROR: " + msg)
+
+  def status(self, msg):
+    sublime.status_message("sublime-godef: " + msg)
