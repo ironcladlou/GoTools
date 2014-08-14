@@ -3,26 +3,22 @@ from subprocess import Popen, PIPE
 
 class Helper():
   def __init__(self):
-    defaults = {
-      "go_bin_path": os.path.join(os.getenv("GOPATH"), "bin"),
-      "gopath": os.getenv("GOPATH"),
-      "goimports_on_save": False,
-      "debug_enabled": False
-    }
+    settings = sublime.load_settings("GoTools.sublime-settings")
+    psettings = sublime.active_window().active_view().settings().get('GoTools', {})
 
-    settings = sublime.load_settings("sublime-go.sublime-settings").get('sublime-go', {})
-    psettings = sublime.active_window().active_view().settings().get('sublime-go', {})
+    self.go_bin_path = settings.get("go_bin_path")
+    self.global_gopath = settings.get("gopath")
+    self.project_gopath = psettings.get("gopath")
+    self.debug_enabled = settings.get("debug_enabled")
+    self.goimports_enabled = settings.get("goimports_on_save")
 
-    self.go_bin_path = settings.get("go_bin_path", defaults["go_bin_path"])
-    self.project_gopath = psettings.get("gopath", None)
-    self.global_gopath = settings.get("gopath", defaults["gopath"])
-    self.debug_enabled = settings.get("debug_enabled", defaults["debug_enabled"])
-    self.goimports_enabled = settings.get("goimports_on_save", defaults["goimports_on_save"])
+    if self.go_bin_path is None:
+      raise Exception("The `go_bin_path` setting is undefined")
+
+    if self.global_gopath is None:
+      raise Exception("The `gopath` setting is undefined")
 
   def gopath(self):
-    if self.global_gopath is None:
-      raise Exception("no GOPATH defined")
-
     if self.project_gopath is None:
       return self.global_gopath
 
@@ -30,13 +26,13 @@ class Helper():
 
   def log(self, msg):
     if self.debug_enabled:
-      print("sublime-godef: " + msg)
+      print("GoTools: " + msg)
 
   def error(self, msg):
-    print("sublime-godef: ERROR: " + msg)
+    print("GoTools: ERROR: " + msg)
 
   def status(self, msg):
-    sublime.status_message("sublime-godef: " + msg)
+    sublime.status_message("GoTools: " + msg)
 
   def go_tool(self, args, stdin=None):
     binary = os.path.join(self.go_bin_path, args[0])
@@ -70,7 +66,7 @@ class GodefCommand(sublime_plugin.WindowCommand):
 
     self.helper = Helper()
     self.gopath = self.helper.gopath()
-    self.helper.log("using gopath " + self.gopath)
+    self.helper.log("using GOPATH: " + self.gopath)
 
     # Find and store the current filename and byte offset at the
     # cursor location
@@ -92,12 +88,12 @@ class GodefCommand(sublime_plugin.WindowCommand):
       self.helper.log("DEBUG: raw output: " + location)
 
       # godef is sometimes returning this junk as part of the output,
-      # so just scrub it away
-      location = location.rstrip().replace("importer=0xa0d80", "").split(":")
+      # so just cut anything prior to the first path separator
+      location = location.rstrip()[location.find('/'):].split(":")
 
       if len(location) != 3:
-        self.helper.log("DEBUG: malformed location from godef: " + str(location))
-        self.helper.status("invalid location from godef; check console log")
+        self.helper.log("WARN: malformed location from godef: " + str(location))
+        self.helper.status("godef failed: Please enable debugging and check console log")
         return
 
       file = location[0]
@@ -105,7 +101,8 @@ class GodefCommand(sublime_plugin.WindowCommand):
       col = int(location[2])
 
       if not os.path.isfile(file):
-        self.helper.error("file indicated by godef not found: " + file)
+        self.helper.log("WARN: file indicated by godef not found: " + file)
+        self.helper.status("godef failed: Please enable debugging and check console log")
         return
 
       self.helper.log("opening definition at " + file + ":" + str(row) + ":" + str(col))
@@ -123,11 +120,11 @@ class GodefCommand(sublime_plugin.WindowCommand):
         self.helper.status('waiting for file to load...')
         sublime.set_timeout(lambda: self.show_location(view, row, col, retries+1), 10)
       else:
-        self.helper.status("timed out waiting for file load")
+        self.helper.status("godef failed: Please check console log for details")
         self.helper.error("timed out waiting for file load - giving up")
 
 
-class GoImportsOnSave(sublime_plugin.EventListener):
+class GoimportsOnSave(sublime_plugin.EventListener):
   def on_pre_save(self, view):
     if view.score_selector(0, 'source.go') == 0:
       return
