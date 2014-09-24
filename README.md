@@ -1,19 +1,13 @@
 # GoTools
 
-GoTools is a a Sublime Text 3 plugin inspired by [vim-go](https://github.com/fatih/vim-go). It provides integration with various community-supported tools for the [Go programming language](http://www.golang.org).
+GoTools is a a [Sublime Text 3](http://www.sublimetext.com) plugin inspired by [vim-go](https://github.com/fatih/vim-go). Rather than attempting to reinvent various supporting IDE components, it provides integration with existing community-supported tools for the [Go programming language](http://www.golang.org).
 
+## Features
 
-## Commands
-
-The plugin adds some commands to Sublime Text suitable for binding to keys or calling from other plugins.
-
-### godef
-
-The `godef` command uses [godef](http://godoc.org/code.google.com/p/rog-go/exp/cmd/godef) to jump to the definition under the cursor.
-
-### goimports
-
-The `goimports` command uses [goimports](http://godoc.org/code.google.com/p/go.tools/cmd/goimports) to format source and manage imports during file save.
+* Jump to symbol/declaration with [godef](http://godoc.org/code.google.com/p/rog-go/exp/cmd/godef).
+* Format on save with [goimports](http://godoc.org/code.google.com/p/go.tools/cmd/goimports).
+* Autocompletion support using [gocode](https://github.com/nsf/gocode).
+* Improved syntax highlighting using the `tmLanguage` support from [GoSublime](https://github.com/DisposaBoy/GoSublime).
 
 ## Installation
 
@@ -21,8 +15,9 @@ The plugin assumes all supporting binaries are located in `go_bin_path` defined 
 
     go get -v code.google.com/p/rog-go/exp/cmd/godef
     go get -v code.google.com/p/go.tools/cmd/goimports
+    go get -v github.com/nsf/gocode
 
-Install the plugin manually:
+Then install the plugin manually (TODO: Package Control support):
 
 #### OSX
     git clone git@github.com:ironcladlou/GoTools.git ~/Library/Application\ Support/Sublime\ Text\ 3/Packages/GoTools
@@ -39,7 +34,8 @@ Access the default and user specified settings via the `Package Settings -> GoTo
 {
   "go_bin_path": "/home/ironcladlou/projects/go/bin",
   "gopath": "/home/ironcladlou/projects/go",
-  "goimports_on_save": true
+  "goimports_on_save": true,
+  "gocode_enabled": true
 }
 ```
 
@@ -62,8 +58,14 @@ Any occurence of `${gopath}` in the `gopath` setting will be automatically repla
 
 This allows for vendored `GOPATH` support to any depth.
 
-### Key Bindings
+### Commands
+
+GoTools provides a `godef` Sublime Text command which can be bound to keys or called by other plugins.
 
 Here's an example key binding:
 
     { "keys" : ["ctrl+'", "g"], "command": "godef" }
+
+### Syntax Support
+
+To use the syntax support, select `Go (GoTools)` from the `View -> Syntax` menu.
