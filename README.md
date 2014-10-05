@@ -5,7 +5,8 @@ GoTools is a a [Sublime Text 3](http://www.sublimetext.com) plugin inspired by [
 ## Features
 
 * Jump to symbol/declaration with [godef](http://godoc.org/code.google.com/p/rog-go/exp/cmd/godef).
-* Format on save with [goimports](http://godoc.org/code.google.com/p/go.tools/cmd/goimports).
+* Format on save with [gofmt](http://godoc.org/code.google.com/p/go.tools/cmd/gofmt).
+* Syntax errors in an output panel with navigation support.
 * Autocompletion support using [gocode](https://github.com/nsf/gocode).
 * Improved syntax highlighting using the `tmLanguage` support from [GoSublime](https://github.com/DisposaBoy/GoSublime).
 
@@ -14,7 +15,7 @@ GoTools is a a [Sublime Text 3](http://www.sublimetext.com) plugin inspired by [
 The plugin assumes all supporting binaries are located in `go_bin_path` defined in the settings. Use `go get` to install them, e.g.:
 
     go get -v code.google.com/p/rog-go/exp/cmd/godef
-    go get -v code.google.com/p/go.tools/cmd/goimports
+    go get -v code.google.com/p/go.tools/cmd/gofmt
     go get -v github.com/nsf/gocode
 
 Then install the plugin manually (TODO: Package Control support):
@@ -34,7 +35,8 @@ Access the default and user specified settings via the `Package Settings -> GoTo
 {
   "go_bin_path": "/home/ironcladlou/projects/go/bin",
   "gopath": "/home/ironcladlou/projects/go",
-  "goimports_on_save": true,
+  "gofmt_enabled": true,
+  "gofmt_cmd": "gofmt",
   "gocode_enabled": true
 }
 ```

@@ -12,23 +12,23 @@
                 "children":
                 [
                     {
-                        "caption": "GottaGo",
+                        "caption": "GoTools",
                         "children":
                         [
                             {
                                 "command": "open_file",
-                                "args": {"file": "${packages}/GottaGo/README.md"},
+                                "args": {"file": "${packages}/GoTools/README.md"},
                                 "caption": "README"
                             },
                             { "caption": "-" },
                             {
                                 "command": "open_file",
-                                "args": {"file": "${packages}/GottaGo/GottaGo.sublime-settings"},
+                                "args": {"file": "${packages}/GoTools/GoTools.sublime-settings"},
                                 "caption": "Settings – Default"
                             },
                             {
                                 "command": "open_file",
-                                "args": {"file": "${packages}/User/GottaGo.sublime-settings"},
+                                "args": {"file": "${packages}/User/GoTools.sublime-settings"},
                                 "caption": "Settings – User"
                             }
                         ]

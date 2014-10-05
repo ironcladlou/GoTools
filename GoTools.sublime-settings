@@ -1,4 +1,4 @@
 {
   "debug_enabled": false,
-  "goimports_on_save": false
+  "gofmt_enabled": false
 }

@@ -9,9 +9,10 @@ class Helper():
     self.go_bin_path = settings.get("go_bin_path")
     self.global_gopath = settings.get("gopath")
     self.project_gopath = psettings.get("gopath")
-    self.debug_enabled = settings.get("debug_enabled")
-    self.goimports_enabled = settings.get("goimports_on_save")
-    self.gocode_enabled = settings.get("gocode_enabled")
+    self.debug_enabled = settings.get("debug_enabled", False)
+    self.gofmt_enabled = settings.get("gofmt_enabled", True)
+    self.gofmt_cmd = settings.get("gofmt_cmd", "gofmt")
+    self.gocode_enabled = settings.get("gocode_enabled", False)
 
     if self.go_bin_path is None:
       raise Exception("The `go_bin_path` setting is undefined")
@@ -62,15 +63,14 @@ class Helper():
       env = os.environ.copy()
       env["GOPATH"] = gopath
 
-      if stdin is None:
-        output = subprocess.check_output(args, stderr=subprocess.STDOUT, env=env)
-      else:
-        p = Popen(args, stdin=PIPE, stdout=PIPE, stderr=PIPE, env=env)
-        output, stderr = p.communicate(stdin)
+    
+      p = Popen(args, stdin=PIPE, stdout=PIPE, stderr=PIPE, env=env)
+      stdout, stderr = p.communicate(input=stdin, timeout=5)
+      output = stdout+stderr
+      p.wait(timeout=5)
+      return output.decode("utf-8"), p.returncode
     except subprocess.CalledProcessError as e:
       raise
-    else:
-      return output.decode("utf-8")
 
 
 class GodefCommand(sublime_plugin.WindowCommand):
@@ -93,9 +93,9 @@ class GodefCommand(sublime_plugin.WindowCommand):
     sublime.set_timeout_async(self.godef, 0)
 
   def godef(self):
-    try:
-      location = self.helper.go_tool(["godef", "-f", self.filename, "-o", str(self.offset)])
-    except subprocess.CalledProcessError as e:
+    location, rc = self.helper.go_tool(["godef", "-f", self.filename, "-o", str(self.offset)])
+    
+    if rc != 0:
       self.helper.status("no definition found")
     else:
       self.helper.log("DEBUG: godef output: " + location)
@@ -137,39 +137,53 @@ class GodefCommand(sublime_plugin.WindowCommand):
         self.helper.error("timed out waiting for file load - giving up")
 
 
-class GoimportsOnSave(sublime_plugin.EventListener):
+class GofmtOnSave(sublime_plugin.EventListener):
   def on_pre_save(self, view):
     if not Helper.is_go_source(view): return
 
     self.helper = Helper(view)
-    if not self.helper.goimports_enabled:
+    if not self.helper.gofmt_enabled:
       return
 
-    view.run_command('goimports')
+    view.run_command('gofmt')
 
 
-class GoimportsCommand(sublime_plugin.TextCommand):
+class GofmtCommand(sublime_plugin.TextCommand):
   def run(self, edit):
     if not Helper.is_go_source(self.view): return
 
     helper = Helper(self.view)
-    helper.log("running goimports")
+    helper.log("running gofmt")
 
     # TODO: inefficient
     file_text = sublime.Region(0, self.view.size())
     file_text_utf = self.view.substr(file_text).encode('utf-8')
-    try:
-      output = helper.go_tool(["goimports"], stdin=helper.buffer_text(self.view))
-    except subprocess.CalledProcessError as e:
-      helper.status("couldn't format: " + str(e))
-      return
     
-    if len(output) == 0:
-      helper.status("unknown format error")
+    output, rc = helper.go_tool([helper.gofmt_cmd, "-e"], stdin=helper.buffer_text(self.view))
+    
+    # first-pass support for displaying syntax errors in an output panel
+    win = sublime.active_window()
+    output_view = win.create_output_panel('gotools_syntax_errors')
+    output_view.set_scratch(True)
+    output_view.settings().set("result_file_regex","^(.*):(\d+):(\d+):(.*)$")
+    output_view.run_command("select_all")
+    output_view.run_command("right_delete")
+
+    if rc == 2:
+      syntax_output = output.replace("<standard input>", self.view.file_name())
+      output_view.run_command('append', {'characters': syntax_output})
+      win.run_command("show_panel", {"panel": "output.gotools_syntax_errors"})
+      helper.log("DEBUG: syntax errors:\n" + output)
       return
 
+    if rc != 0:
+      helper.log("unknown gofmt error: " + str(rc))
+      return
+
+    win.run_command("hide_panel", {"panel": "output.gotools_syntax_errors"})
+
     self.view.replace(edit, sublime.Region(0, self.view.size()), output)
-    helper.log("replaced buffer with goimports output")
+    helper.log("replaced buffer with gofmt output")
 
 class GocodeSuggestions(sublime_plugin.EventListener):
   CLASS_SYMBOLS = {
@@ -186,14 +200,15 @@ class GocodeSuggestions(sublime_plugin.EventListener):
 
     if not helper.gocode_enabled: return
 
-    try:
-      suggestionsJsonStr = helper.go_tool(["gocode", "-f=json", "autocomplete", 
-        str(helper.offset_at_cursor(view))], stdin=helper.buffer_text(view))
-      suggestionsJson = json.loads(suggestionsJsonStr)
-    except subprocess.CalledProcessError as e:
+    suggestionsJsonStr, rc = helper.go_tool(["gocode", "-f=json", "autocomplete", 
+      str(helper.offset_at_cursor(view))], stdin=helper.buffer_text(view))
+    suggestionsJson = json.loads(suggestionsJsonStr)
+
+    helper.log("DEBUG: gocode output: " + suggestionsJsonStr)
+
+    if rc != 0:
       helper.status("no completions found: " + str(e))
-    else:
-      helper.log("DEBUG: gocode output: " + suggestionsJsonStr)
+      return []
     
     if len(suggestionsJson) > 0:
       return ([self.build_suggestion(j) for j in suggestionsJson[1]], sublime.INHIBIT_WORD_COMPLETIONS)
