@@ -3,16 +3,18 @@ from subprocess import Popen, PIPE
 
 class Helper():
   def __init__(self, view):
-    settings = sublime.load_settings("GoTools.sublime-settings")
-    psettings = view.settings().get('GoTools', {})
+    self.settings = sublime.load_settings("GoTools.sublime-settings")
+    self.psettings = view.settings().get('GoTools', {})
 
-    self.go_bin_path = settings.get("go_bin_path")
-    self.global_gopath = settings.get("gopath")
-    self.project_gopath = psettings.get("gopath")
-    self.debug_enabled = settings.get("debug_enabled", False)
-    self.gofmt_enabled = settings.get("gofmt_enabled", True)
-    self.gofmt_cmd = settings.get("gofmt_cmd", "gofmt")
-    self.gocode_enabled = settings.get("gocode_enabled", False)
+    self.go_bin_path = self.get_proj_setting("go_bin_path")
+    self.global_gopath = self.settings.get("gopath")
+    self.project_gopath = self.psettings.get("gopath")
+    self.debug_enabled = self.get_proj_setting("debug_enabled", False)
+    self.gofmt_enabled = self.get_proj_setting("gofmt_enabled", True)
+    self.gofmt_cmd = self.get_proj_setting("gofmt_cmd", "gofmt")
+    self.gocode_enabled = self.get_proj_setting("gocode_enabled", False)
+    self.go_root = self.get_proj_setting("goroot", os.getenv("GOROOT", ""))
+    self.lib_path = self.get_proj_setting("lib_path", None)
 
     if self.go_bin_path is None:
       raise Exception("The `go_bin_path` setting is undefined")
@@ -23,6 +25,9 @@ class Helper():
   @staticmethod
   def is_go_source(view):
     return view.score_selector(0, 'source.go') != 0
+
+  def get_proj_setting(self, key, fallback=None):
+    return self.psettings.get(key, self.settings.get(key, fallback))
 
   def gopath(self):
     if self.project_gopath is None:
@@ -57,8 +62,9 @@ class Helper():
     args[0] = binary
     try:
       gopath = self.gopath()
-      self.log("gopath: " + gopath)
-      self.log("spawning " + " ".join(args))
+      self.log("spawning process:")
+      self.log("=> GOPATH=" + gopath)
+      self.log("=> " + " ".join(args))
 
       env = os.environ.copy()
       env["GOPATH"] = gopath
@@ -79,7 +85,6 @@ class GodefCommand(sublime_plugin.WindowCommand):
 
     self.helper = Helper(self.window.active_view())
     self.gopath = self.helper.gopath()
-    self.helper.log("using GOPATH: " + self.gopath)
 
     # Find and store the current filename and byte offset at the
     # cursor location
@@ -98,7 +103,7 @@ class GodefCommand(sublime_plugin.WindowCommand):
     if rc != 0:
       self.helper.status("no definition found")
     else:
-      self.helper.log("DEBUG: godef output: " + location)
+      self.helper.log("godef output: " + location.rstrip())
 
       # godef is sometimes returning this junk as part of the output,
       # so just cut anything prior to the first path separator
@@ -200,8 +205,15 @@ class GocodeSuggestions(sublime_plugin.EventListener):
 
     if not helper.gocode_enabled: return
 
+    # set the lib-path for gocode's lookups
+    if helper.lib_path:
+      _, rc = helper.go_tool(["gocode", "set", "lib-path", helper.lib_path])
+
     suggestionsJsonStr, rc = helper.go_tool(["gocode", "-f=json", "autocomplete", 
       str(helper.offset_at_cursor(view))], stdin=helper.buffer_text(view))
+
+    # TODO: restore gocode's lib-path
+
     suggestionsJson = json.loads(suggestionsJsonStr)
 
     helper.log("DEBUG: gocode output: " + suggestionsJsonStr)

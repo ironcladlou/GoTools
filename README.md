@@ -33,24 +33,26 @@ Access the default and user specified settings via the `Package Settings -> GoTo
 
 ```json
 {
-  "go_bin_path": "/home/ironcladlou/projects/go/bin",
-  "gopath": "/home/ironcladlou/projects/go",
+  "go_bin_path": "/home/ironcladlou/go/bin",
+  "gopath": "/home/ironcladlou/go",
   "gofmt_enabled": true,
   "gofmt_cmd": "gofmt",
   "gocode_enabled": true
 }
 ```
 
+Several settings can be further customized at the project scope by adding a `GoTools` settings entry to a project's `.sublime-project` file.
+
 ### Setting GOPATH for projects 
 
-The `GOPATH` can be further customized at the project scope by adding a `GoTools` settings entry to a project's `.sublime-project` file. For example:
+Here's an example which overrides `GOPATH` on a project basis:
 
 ```json
 {
   "folders": [],
   "settings": {
     "GoTools": {
-      "gopath": "/home/ironcladlou/projects/go/src/github.com/some/project/vendor:${gopath}"
+      "gopath": "/home/ironcladlou/go/src/github.com/some/project/Godeps/_workspace:${gopath}"
     }
   }
 }
@@ -59,6 +61,31 @@ The `GOPATH` can be further customized at the project scope by adding a `GoTools
 Any occurence of `${gopath}` in the `gopath` setting will be automatically replaced with the `gopath` value from the `GoTools.sublime-settings` file.
 
 This allows for vendored `GOPATH` support to any depth.
+
+
+### Configuring gocode for nonstandard projects
+
+**Important**: Using this configuration will modify the `lib-path` setting in the gocode daemon. The change will affect all clients, including other Sublime Text sessions, Vim instances, etc. Don't use this setting if you're concerned about interoperability with other tools which integrate with gocode.
+
+Some projects make use of a vendoring tool such as [Godep](https://github.com/tools/godep), and many projects use some sort of custom build script. Additionally, gocode uses a client/server architecture, and at present relies on a global server-side setting to resolve Go package paths for suggestion computation. By default, gocode will only search `GOROOT` and `GOPATH/pkg` for packages, which may be insufficient if the project relies on a custom build script which places output in nonstandard locations.
+
+With such a project, to get the best suggestions from gocode, it's necessary to configure the gocode daemon prior to client suggestion requests to inform gocode about the locations of compiled packages for the project.
+
+Here's an example of project-scoped settings which accommodates a custom build script which compiles the project source to an `_output` directory and Godeps dependencies to `Godeps/_workspace` (both of which represent alternate `GOPATH` entries):
+
+```json
+{
+  "folders": [],
+  "settings": {
+    "GoTools": {
+      "gopath": "/home/ironcladlou/go/src/github.com/some/project/Godeps/_workspace:${gopath}",
+      "lib_path": "/usr/lib64/golang/pkg/linux_amd64:/home/ironcladlou/go/src/github.com/some/project/_output/pkg/linux_amd64:/home/ironcladlou/go/src/github.com/some/project/Godeps/_workspace/pkg/linux_amd64"
+    }
+  }
+}
+```
+
+Now completions will be supported as expected.
 
 ### Commands
 
@@ -70,4 +97,4 @@ Here's an example key binding:
 
 ### Syntax Support
 
-To use the syntax support, select `Go (GoTools)` from the `View -> Syntax` menu.
+To use the Sublime Text syntax support, select `Go (GoTools)` from the `View -> Syntax` menu.
