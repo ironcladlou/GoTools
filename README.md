@@ -2,6 +2,8 @@
 
 GoTools is a a [Sublime Text 3](http://www.sublimetext.com) plugin inspired by [vim-go](https://github.com/fatih/vim-go). Rather than attempting to reinvent various supporting IDE components, it provides integration with existing community-supported tools for the [Go programming language](http://www.golang.org).
 
+**Please note** that the project is still considered a pre-release alpha/personal project and no effort is being made to maintain compatibility with any old settings or environments.
+
 ## Features
 
 * Jump to symbol/declaration with [godef](http://godoc.org/code.google.com/p/rog-go/exp/cmd/godef).
@@ -9,6 +11,7 @@ GoTools is a a [Sublime Text 3](http://www.sublimetext.com) plugin inspired by [
 * Syntax errors in an output panel with navigation support.
 * Autocompletion support using [gocode](https://github.com/nsf/gocode).
 * Improved syntax highlighting using the `tmLanguage` support from [GoSublime](https://github.com/DisposaBoy/GoSublime).
+* Build and unit test integration
 
 ## Installation
 
@@ -46,16 +49,17 @@ Access the default and user specified settings via the `Package Settings -> GoTo
 
 Several settings can be further customized at the project scope by adding a `GoTools` settings entry to a project's `.sublime-project` file.
 
-### Setting GOPATH for projects 
-
-Here's an example which overrides `GOPATH` on a project basis:
+Here's an example project file which uses a `GOPATH` override and integrates with the GoTools build system:
 
 ```json
 {
   "folders": [],
   "settings": {
     "GoTools": {
-      "gopath": "/home/ironcladlou/go/src/github.com/some/project/Godeps/_workspace:${gopath}"
+      "gopath": "/home/ironcladlou/go/src/github.com/some/project/Godeps/_workspace:${gopath}",
+      "project_package": "github.com/some/project",
+      "build_package": "github.com/some/project/cmd/myprogram",
+      "test_packages": ["cmd", "lib", "examples"]
     }
   }
 }
@@ -63,15 +67,29 @@ Here's an example which overrides `GOPATH` on a project basis:
 
 Any occurence of `${gopath}` in the `gopath` setting will be automatically replaced with the `gopath` value from the `GoTools.sublime-settings` file.
 
-This allows for vendored `GOPATH` support to any depth.
 
-### Commands
+### Go to definition support
 
 GoTools provides a `godef` Sublime Text command which can be bound to keys or called by other plugins.
 
 Here's an example key binding:
 
     { "keys" : ["ctrl+'", "g"], "command": "godef" }
+
+
+### Build System
+
+GoTools provides a `GoTools` Sublime Text build system which integrates with GoTools settings to run `go build` and `go install`.
+
+The build system discovers packages to build and test based on GoTools settings.
+
+To build, execute the `GoTools` build system using Sublime Text's built-in support. In addition to the main build type, the `GoTool` build system provides two variants:
+
+  * `Clean Build` recursively deletes all `GOPATH/pkg` directory contents and then executes a build.
+  * `Run Unit Tests` discovers test packages based on the `project_package` and `test_packages` settings relative to the project `GOPATH` and executes them.
+
+These can be executed from the command pallette or bound to keys like any other build system variant.
+
 
 ### Syntax Support
 
@@ -87,3 +105,6 @@ With such a project, to get the best suggestions from gocode, it's necessary to 
 
 GoTools will infer the correct gocode `lib-path` by constructing a path using the `goroot`, `goarch`, `goos`, and `gopath` settings entries. For gocode support to work as expected, it's important to set each of those values in the settings.
 
+## Using alongside GoSublime
+
+Installing GoTools alongside GoSublime isn't tested or supported, so YMMV.

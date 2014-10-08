@@ -1,0 +1,17 @@
+{
+  "cmd": [],
+  "working_dir": "",
+  "target": "gobuild",
+  "selector": "source.go",
+
+  "variants": [
+    {
+      "name": "Clean Build",
+      "clean": true
+    },
+    {
+      "name": "Run Unit Tests",
+      "test_mode": true
+    }
+  ]
+}
