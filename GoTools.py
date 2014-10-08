@@ -1,4 +1,12 @@
-import sublime, sublime_plugin, subprocess, os, locale, json
+import sublime
+import sublime_plugin
+import subprocess
+import os
+import locale
+import json
+import threading
+import functools
+import time
 from subprocess import Popen, PIPE
 
 class Helper():
@@ -14,7 +22,8 @@ class Helper():
     self.gofmt_cmd = self.get_proj_setting("gofmt_cmd", "gofmt")
     self.gocode_enabled = self.get_proj_setting("gocode_enabled", False)
     self.go_root = self.get_proj_setting("goroot", os.getenv("GOROOT", ""))
-    self.lib_path = self.get_proj_setting("lib_path", None)
+    self.go_arch = self.get_proj_setting("goarch", os.getenv("GOARCH", ""))
+    self.go_os = self.get_proj_setting("goos", os.getenv("GOOS", ""))
 
     if self.go_bin_path is None:
       raise Exception("The `go_bin_path` setting is undefined")
@@ -34,6 +43,18 @@ class Helper():
       return self.global_gopath
 
     return self.project_gopath.replace("${gopath}", self.global_gopath)
+
+  def libpath(self):
+    gopath = self.gopath()
+    libpath = []
+
+    if self.go_root and self.go_arch and self.go_os:
+      libpath.append(os.path.join(self.go_root, "pkg", self.go_os + "_" + self.go_arch))
+
+      for p in gopath.split(":"):
+        libpath.append(os.path.join(p, "pkg", self.go_os + "_" + self.go_arch))
+
+    return ":".join(libpath)
 
   def log(self, msg):
     if self.debug_enabled:
@@ -206,8 +227,7 @@ class GocodeSuggestions(sublime_plugin.EventListener):
     if not helper.gocode_enabled: return
 
     # set the lib-path for gocode's lookups
-    if helper.lib_path:
-      _, rc = helper.go_tool(["gocode", "set", "lib-path", helper.lib_path])
+    _, rc = helper.go_tool(["gocode", "set", "lib-path", helper.libpath()])
 
     suggestionsJsonStr, rc = helper.go_tool(["gocode", "-f=json", "autocomplete", 
       str(helper.offset_at_cursor(view))], stdin=helper.buffer_text(view))

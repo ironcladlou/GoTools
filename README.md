@@ -35,6 +35,9 @@ Access the default and user specified settings via the `Package Settings -> GoTo
 {
   "go_bin_path": "/home/ironcladlou/go/bin",
   "gopath": "/home/ironcladlou/go",
+  "goroot": "/usr/lib64/golang",
+  "goarch": "amd64",
+  "goos": "linux",
   "gofmt_enabled": true,
   "gofmt_cmd": "gofmt",
   "gocode_enabled": true
@@ -62,31 +65,6 @@ Any occurence of `${gopath}` in the `gopath` setting will be automatically repla
 
 This allows for vendored `GOPATH` support to any depth.
 
-
-### Configuring gocode for nonstandard projects
-
-**Important**: Using this configuration will modify the `lib-path` setting in the gocode daemon. The change will affect all clients, including other Sublime Text sessions, Vim instances, etc. Don't use this setting if you're concerned about interoperability with other tools which integrate with gocode.
-
-Some projects make use of a vendoring tool such as [Godep](https://github.com/tools/godep), and many projects use some sort of custom build script. Additionally, gocode uses a client/server architecture, and at present relies on a global server-side setting to resolve Go package paths for suggestion computation. By default, gocode will only search `GOROOT` and `GOPATH/pkg` for packages, which may be insufficient if the project relies on a custom build script which places output in nonstandard locations.
-
-With such a project, to get the best suggestions from gocode, it's necessary to configure the gocode daemon prior to client suggestion requests to inform gocode about the locations of compiled packages for the project.
-
-Here's an example of project-scoped settings which accommodates a custom build script which compiles the project source to an `_output` directory and Godeps dependencies to `Godeps/_workspace` (both of which represent alternate `GOPATH` entries):
-
-```json
-{
-  "folders": [],
-  "settings": {
-    "GoTools": {
-      "gopath": "/home/ironcladlou/go/src/github.com/some/project/Godeps/_workspace:${gopath}",
-      "lib_path": "/usr/lib64/golang/pkg/linux_amd64:/home/ironcladlou/go/src/github.com/some/project/_output/pkg/linux_amd64:/home/ironcladlou/go/src/github.com/some/project/Godeps/_workspace/pkg/linux_amd64"
-    }
-  }
-}
-```
-
-Now completions will be supported as expected.
-
 ### Commands
 
 GoTools provides a `godef` Sublime Text command which can be bound to keys or called by other plugins.
@@ -98,3 +76,14 @@ Here's an example key binding:
 ### Syntax Support
 
 To use the Sublime Text syntax support, select `Go (GoTools)` from the `View -> Syntax` menu.
+
+## Gocode support considerations
+
+**Important**: Using gocode support will modify the `lib-path` setting in the gocode daemon. The change will affect all clients, including other Sublime Text sessions, Vim instances, etc. Don't use this setting if you're concerned about interoperability with other tools which integrate with gocode.
+
+Some projects make use of a dependency isolation tool such as [Godep](https://github.com/tools/godep), and many projects use some sort of custom build script. Additionally, gocode uses a client/server architecture, and at present relies on a global server-side setting to resolve Go package paths for suggestion computation. By default, gocode will only search `GOROOT` and `GOPATH/pkg` for packages, which may be insufficient if the project compiles source to multiple `GOPATH` entries (such as `Godeps/_workspace/pkg`).
+
+With such a project, to get the best suggestions from gocode, it's necessary to configure the gocode daemon prior to client suggestion requests to inform gocode about the locations of compiled packages for the project.
+
+GoTools will infer the correct gocode `lib-path` by constructing a path using the `goroot`, `goarch`, `goos`, and `gopath` settings entries. For gocode support to work as expected, it's important to set each of those values in the settings.
+
