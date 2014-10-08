@@ -56,7 +56,7 @@ Here's an example project file which uses a `GOPATH` override and integrates wit
   "folders": [],
   "settings": {
     "GoTools": {
-      "gopath": "/home/ironcladlou/go/src/github.com/some/project/Godeps/_workspace:${gopath}",
+      "gopath": "${gopath}/src/github.com/some/project/Godeps/_workspace:${gopath}",
       "project_package": "github.com/some/project",
       "build_package": "github.com/some/project/cmd/myprogram",
       "test_packages": ["cmd", "lib", "examples"]
