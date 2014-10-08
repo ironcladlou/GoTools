@@ -312,7 +312,12 @@ class GobuildCommand(sublime_plugin.WindowCommand):
     for p in self.helper.gopath().split(":"):
       pkgdir = os.path.join(p, "pkg")
       self.helper.log("=> " + pkgdir)
-      shutil.rmtree(pkgdir)
+      if os.path.exists(pkgdir):
+        try:
+          shutil.rmtree(pkgdir)
+        except Exception as e:
+          self.helper.log("WARNING: couldn't clean directory: " + str(e))
+
 
   def build(self, exec_opts):
     self.helper.log("running build")
