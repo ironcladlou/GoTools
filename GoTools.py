@@ -7,6 +7,9 @@ import json
 import threading
 import functools
 import time
+import shutil
+import glob
+import fnmatch
 from subprocess import Popen, PIPE
 
 class Helper():
@@ -24,6 +27,9 @@ class Helper():
     self.go_root = self.get_proj_setting("goroot", os.getenv("GOROOT", ""))
     self.go_arch = self.get_proj_setting("goarch", os.getenv("GOARCH", ""))
     self.go_os = self.get_proj_setting("goos", os.getenv("GOOS", ""))
+    self.project_package = self.get_proj_setting("project_package")
+    self.build_package = self.get_proj_setting("build_package")
+    self.test_packages = self.get_proj_setting("test_packages")
 
     if self.go_bin_path is None:
       raise Exception("The `go_bin_path` setting is undefined")
@@ -253,3 +259,101 @@ class GocodeSuggestions(sublime_plugin.EventListener):
       json["type"],
       self.CLASS_SYMBOLS.get(json["class"], "?"))
     return (label, json["name"])
+
+
+class GobuildCommand(sublime_plugin.WindowCommand):
+  def run(self, cmd = None, shell_cmd = None, file_regex = "", line_regex = "", working_dir = "",
+          encoding = "utf-8", env = {}, quiet = False, kill = False,
+          word_wrap = True, syntax = "Packages/Text/Plain text.tmLanguage",
+          clean = False, test_mode = False,
+          # Catches "path" and "shell"
+          **kwargs):
+    self.helper = Helper(self.window.active_view())
+
+    if clean:
+      self.clean()
+
+    if len(file_regex) == 0:
+      file_regex = "^(.*\\.go):(\\d+):()(.*)$"
+
+    env["GOPATH"] = self.helper.gopath()
+
+    if test_mode:
+      self.test({
+        "cmd": cmd,
+        "shell_cmd": shell_cmd,
+        "file_regex": file_regex,
+        "line_regex": line_regex,
+        "working_dir": working_dir,
+        "encoding": encoding,
+        "env": env,
+        "quiet": quiet,
+        "kill": kill,
+        "word_wrap": word_wrap,
+        "syntax": syntax,
+        })
+    else:
+      self.build({
+        "cmd": cmd,
+        "shell_cmd": shell_cmd,
+        "file_regex": file_regex,
+        "line_regex": line_regex,
+        "working_dir": working_dir,
+        "encoding": encoding,
+        "env": env,
+        "quiet": quiet,
+        "kill": kill,
+        "word_wrap": word_wrap,
+        "syntax": syntax
+        })
+
+  def clean(self):
+    self.helper.log("cleaning build output directories")
+    for p in self.helper.gopath().split(":"):
+      pkgdir = os.path.join(p, "pkg")
+      self.helper.log("=> " + pkgdir)
+      shutil.rmtree(pkgdir)
+
+  def build(self, exec_opts):
+    self.helper.log("running build")
+
+    exec_opts["cmd"] = ["go", "install", self.helper.build_package]
+
+    self.window.run_command("exec", exec_opts)
+
+  def test(self, exec_opts):
+    self.helper.log("running tests")
+
+    proj_package_dir = None
+
+    for gopath in self.helper.gopath().split(":"):
+      d = os.path.join(gopath, "src", self.helper.project_package)
+      if os.path.exists(d):
+        proj_package_dir = d
+        break
+
+    if proj_package_dir == None:
+      self.helper.log("ERROR: couldn't find project package dir '"
+        + self.helper.project_package + "' in GOPATH: " + self.helper.gopath())
+      return
+
+    exec_opts["working_dir"] = proj_package_dir
+
+    test_packages = {}
+
+    for pkg_dir in self.helper.test_packages:
+      abs_pkg_dir = os.path.join(proj_package_dir, pkg_dir)
+      self.helper.log("searching for tests in: " + abs_pkg_dir)
+      for root, dirnames, filenames in os.walk(abs_pkg_dir):
+        for filename in fnmatch.filter(filenames, '*_test.go'):
+          abs_test_file = os.path.join(root, filename)
+          rel_test_file = os.path.relpath(abs_test_file, proj_package_dir)
+          test_pkg = os.path.join(self.helper.project_package, os.path.dirname(rel_test_file))
+          test_packages[test_pkg] = None
+    
+    test_packages = list(test_packages.keys())
+    self.helper.log("test files: " + str(test_packages))
+
+    exec_opts["cmd"] = ["go", "test"] + test_packages
+
+    self.window.run_command("exec", exec_opts)
