@@ -1,4 +1,11 @@
 {
-  "debug_enabled": false,
-  "gofmt_enabled": false
+  "go_bin_path": "/home/user/go/bin",
+  "gopath": "/home/user/go",
+  "goroot": "/usr/lib64/golang",
+  "goarch": "amd64",
+  "goos": "linux",
+  "gofmt_enabled": true,
+  "gofmt_cmd": "gofmt",
+  "gocode_enabled": true,
+  "debug_enabled": false
 }

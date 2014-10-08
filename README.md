@@ -30,7 +30,7 @@ Then install the plugin manually (TODO: Package Control support):
 
     git clone git@github.com:ironcladlou/GoTools.git ~/.config/sublime-text-3/Packages/GoTools
 
-## Settings
+## Getting Started
 
 Access the default and user specified settings via the `Package Settings -> GoTools` menu in Sublime Text. The `gopath` and `go_bin_path` settings are required. Here's an example user settings file:
 
@@ -47,7 +47,7 @@ Access the default and user specified settings via the `Package Settings -> GoTo
 }
 ```
 
-Several settings can be further customized at the project scope by adding a `GoTools` settings entry to a project's `.sublime-project` file.
+Next, integrate GoTools with a Sublime Text project by adding a `GoTools` settings entry to a project's `.sublime-project` file.
 
 Here's an example project file which uses a `GOPATH` override and integrates with the GoTools build system:
 
@@ -67,8 +67,9 @@ Here's an example project file which uses a `GOPATH` override and integrates wit
 
 Any occurence of `${gopath}` in the `gopath` setting will be automatically replaced with the `gopath` value from the `GoTools.sublime-settings` file.
 
+## Using GoTools
 
-### Go to definition support
+### Go to definition
 
 GoTools provides a `godef` Sublime Text command which can be bound to keys or called by other plugins.
 
@@ -77,7 +78,7 @@ Here's an example key binding:
     { "keys" : ["ctrl+'", "g"], "command": "godef" }
 
 
-### Build System
+### Build system
 
 GoTools provides a `GoTools` Sublime Text build system which integrates with GoTools settings to run `go build` and `go install`.
 
@@ -91,11 +92,13 @@ To build, execute the `GoTools` build system using Sublime Text's built-in suppo
 These can be executed from the command pallette or bound to keys like any other build system variant.
 
 
-### Syntax Support
+### Syntax support
 
 To use the Sublime Text syntax support, select `Go (GoTools)` from the `View -> Syntax` menu.
 
-## Gocode support considerations
+## Notes
+
+#### Gocode support considerations
 
 **Important**: Using gocode support will modify the `lib-path` setting in the gocode daemon. The change will affect all clients, including other Sublime Text sessions, Vim instances, etc. Don't use this setting if you're concerned about interoperability with other tools which integrate with gocode.
 
@@ -105,6 +108,6 @@ With such a project, to get the best suggestions from gocode, it's necessary to 
 
 GoTools will infer the correct gocode `lib-path` by constructing a path using the `goroot`, `goarch`, `goos`, and `gopath` settings entries. For gocode support to work as expected, it's important to set each of those values in the settings.
 
-## Using alongside GoSublime
+#### Using alongside GoSublime
 
 Installing GoTools alongside GoSublime isn't tested or supported, so YMMV.
