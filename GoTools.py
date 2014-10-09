@@ -29,7 +29,7 @@ class Helper():
     self.go_arch = self.get_proj_setting("goarch", os.getenv("GOARCH", ""))
     self.go_os = self.get_proj_setting("goos", os.getenv("GOOS", ""))
     self.project_package = self.get_proj_setting("project_package")
-    self.build_package = self.get_proj_setting("build_package")
+    self.build_packages = self.get_proj_setting("build_packages")
     self.test_packages = self.get_proj_setting("test_packages")
     self.verbose_tests = self.get_proj_setting("verbose_tests")
 
@@ -342,9 +342,13 @@ class GobuildCommand(sublime_plugin.WindowCommand):
 
 
   def build(self, exec_opts):
-    self.helper.log("running build")
+    build_packages = []
+    for p in self.helper.build_packages:
+      build_packages.append(os.path.join(self.helper.project_package, p))
 
-    exec_opts["cmd"] = ["go", "install", self.helper.build_package]
+    self.helper.log("running build for packages: " + str(build_packages))
+
+    exec_opts["cmd"] = ["go", "install"] + build_packages
 
     self.window.run_command("exec", exec_opts)
 
