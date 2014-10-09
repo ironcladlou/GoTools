@@ -10,8 +10,16 @@
       "clean": true
     },
     {
-      "name": "Run Unit Tests",
-      "test_mode": true
+      "name": "Run Tests",
+      "task": "test_packages"
+    },
+    {
+      "name": "Run Test at Cursor",
+      "task": "test_at_cursor"
+    },
+    {
+      "name": "Run Current Package Tests",
+      "task": "test_current_package"
     }
   ]
 }

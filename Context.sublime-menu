@@ -1,0 +1,27 @@
+[
+  {
+    "command": "build",
+    "caption": "Go Build"
+  },
+  {
+    "command": "build",
+    "caption": "Go Tests",
+    "args": {
+      "variant": "Run Tests"
+    }
+  },
+  {
+    "command": "build",
+    "caption": "Go Test at Cursor",
+    "args": {
+      "variant": "Run Test at Cursor"
+    }
+  },
+  {
+    "command": "build",
+    "caption": "Go Test Current Package",
+    "args": {
+      "variant": "Run Current Package Tests"
+    }
+  }
+]

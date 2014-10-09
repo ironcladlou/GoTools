@@ -1,11 +1,36 @@
 {
+  // All go tools other than go itself will be executed from
+  // this directory. Required.
   "go_bin_path": "/home/user/go/bin",
+
+  // The global GOPATH to use for go tool executions. Available
+  // in project settings "gopath" values as ${gopath}. Required.
   "gopath": "/home/user/go",
+
+  // The go installation directory. Required.
   "goroot": "/usr/lib64/golang",
+
+  // The go architecture to use for package resolution. Required.
   "goarch": "amd64",
+
+  // The go OS to use for package resolution. Required.
   "goos": "linux",
+
+  // Enable gofmt formatting after a file is saved. Optional.
   "gofmt_enabled": true,
+
+  // Instead of `gofmt`, use another command (e.g. goimports). Optional.
   "gofmt_cmd": "gofmt",
+
+  // Enable gocode autocompletion support. Optional.
   "gocode_enabled": true,
-  "debug_enabled": false
+
+  // Enable GoTools console debug output. Optional.
+  "debug_enabled": false,
+
+  // Use GoTools for all *.go files
+  "extensions":
+  [
+    "go"
+  ]
 }

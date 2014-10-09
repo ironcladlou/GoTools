@@ -10,6 +10,7 @@ import time
 import shutil
 import glob
 import fnmatch
+import re
 from subprocess import Popen, PIPE
 
 class Helper():
@@ -30,6 +31,7 @@ class Helper():
     self.project_package = self.get_proj_setting("project_package")
     self.build_package = self.get_proj_setting("build_package")
     self.test_packages = self.get_proj_setting("test_packages")
+    self.verbose_tests = self.get_proj_setting("verbose_tests")
 
     if self.go_bin_path is None:
       raise Exception("The `go_bin_path` setting is undefined")
@@ -79,6 +81,30 @@ class Helper():
   def offset_at_cursor(self, view):
     row, col = view.rowcol(view.sel()[0].begin())
     return view.text_point(row, col)
+
+  def func_name_at_cursor(self, view):
+    func_regions = view.find_by_selector('meta.function')
+    self.log("found functions: " + str(func_regions))
+
+    func_name = ""
+
+    for r in func_regions:
+      if r.contains(self.offset_at_cursor(view)):
+        self.log("found cursor in region: " + str(r))
+        lines = view.substr(r).splitlines()
+        match = re.match('func.*(Test.+)\(', lines[0])
+        if match and match.group(1):
+          func_name = match.group(1)
+          break
+
+    return func_name
+
+  def current_file_pkg(self, view):
+    abs_pkg_dir = os.path.dirname(view.file_name())
+    try:
+      return abs_pkg_dir[abs_pkg_dir.index(self.project_package):]
+    except:
+      return ""
 
   def go_tool(self, args, stdin=None):
     binary = os.path.join(self.go_bin_path, args[0])
@@ -265,7 +291,7 @@ class GobuildCommand(sublime_plugin.WindowCommand):
   def run(self, cmd = None, shell_cmd = None, file_regex = "", line_regex = "", working_dir = "",
           encoding = "utf-8", env = {}, quiet = False, kill = False,
           word_wrap = True, syntax = "Packages/Text/Plain text.tmLanguage",
-          clean = False, test_mode = False,
+          clean = False, task = "build",
           # Catches "path" and "shell"
           **kwargs):
     self.helper = Helper(self.window.active_view())
@@ -278,39 +304,35 @@ class GobuildCommand(sublime_plugin.WindowCommand):
 
     env["GOPATH"] = self.helper.gopath()
 
-    if test_mode:
-      self.test({
-        "cmd": cmd,
-        "shell_cmd": shell_cmd,
-        "file_regex": file_regex,
-        "line_regex": line_regex,
-        "working_dir": working_dir,
-        "encoding": encoding,
-        "env": env,
-        "quiet": quiet,
-        "kill": kill,
-        "word_wrap": word_wrap,
-        "syntax": syntax,
-        })
+    exec_opts = {
+      "cmd": cmd,
+      "shell_cmd": shell_cmd,
+      "file_regex": file_regex,
+      "line_regex": line_regex,
+      "working_dir": working_dir,
+      "encoding": encoding,
+      "env": env,
+      "quiet": quiet,
+      "kill": kill,
+      "word_wrap": word_wrap,
+      "syntax": syntax,
+      }
+
+    if task == "build":
+      self.build(exec_opts)
+    elif task == "test_packages":
+      self.test_packages(exec_opts)
+    elif task == "test_at_cursor":
+      self.test_at_cursor(exec_opts)
+    elif task == "test_current_package":
+      self.test_current_package(exec_opts)
     else:
-      self.build({
-        "cmd": cmd,
-        "shell_cmd": shell_cmd,
-        "file_regex": file_regex,
-        "line_regex": line_regex,
-        "working_dir": working_dir,
-        "encoding": encoding,
-        "env": env,
-        "quiet": quiet,
-        "kill": kill,
-        "word_wrap": word_wrap,
-        "syntax": syntax
-        })
+      self.helper.log("invalid task: " + task)
 
   def clean(self):
     self.helper.log("cleaning build output directories")
     for p in self.helper.gopath().split(":"):
-      pkgdir = os.path.join(p, "pkg")
+      pkgdir = os.path.join(p, "pkg", self.helper.go_os + "_" + self.helper.go_arch)
       self.helper.log("=> " + pkgdir)
       if os.path.exists(pkgdir):
         try:
@@ -326,7 +348,7 @@ class GobuildCommand(sublime_plugin.WindowCommand):
 
     self.window.run_command("exec", exec_opts)
 
-  def test(self, exec_opts):
+  def test_packages(self, exec_opts, packages = [], patterns = []):
     self.helper.log("running tests")
 
     proj_package_dir = None
@@ -346,19 +368,64 @@ class GobuildCommand(sublime_plugin.WindowCommand):
 
     test_packages = {}
 
-    for pkg_dir in self.helper.test_packages:
-      abs_pkg_dir = os.path.join(proj_package_dir, pkg_dir)
-      self.helper.log("searching for tests in: " + abs_pkg_dir)
-      for root, dirnames, filenames in os.walk(abs_pkg_dir):
-        for filename in fnmatch.filter(filenames, '*_test.go'):
-          abs_test_file = os.path.join(root, filename)
-          rel_test_file = os.path.relpath(abs_test_file, proj_package_dir)
-          test_pkg = os.path.join(self.helper.project_package, os.path.dirname(rel_test_file))
-          test_packages[test_pkg] = None
-    
+    if len(packages) > 0:
+      for p in packages:
+        test_packages[p] = None
+    else:
+      for pkg_dir in self.helper.test_packages:
+        abs_pkg_dir = os.path.join(proj_package_dir, pkg_dir)
+        self.helper.log("searching for tests in: " + abs_pkg_dir)
+        for root, dirnames, filenames in os.walk(abs_pkg_dir):
+          for filename in fnmatch.filter(filenames, '*_test.go'):
+            abs_test_file = os.path.join(root, filename)
+            rel_test_file = os.path.relpath(abs_test_file, proj_package_dir)
+            test_pkg = os.path.join(self.helper.project_package, os.path.dirname(rel_test_file))
+            test_packages[test_pkg] = None
+      
     test_packages = list(test_packages.keys())
-    self.helper.log("test files: " + str(test_packages))
+    self.helper.log("test packages: " + str(test_packages))
+    self.helper.log("test patterns: " + str(patterns))
 
-    exec_opts["cmd"] = ["go", "test"] + test_packages
+    cmd = ["go", "test"]
+
+    if self.helper.verbose_tests:
+      cmd.append("-v")
+
+    cmd += test_packages
+    for p in patterns:
+      cmd += ["-run", p]
+
+    exec_opts["cmd"] = cmd
 
     self.window.run_command("exec", exec_opts)
+
+  def test_current_package(self, exec_opts):
+    self.helper.log("running current package tests")
+    view = self.window.active_view()
+    pkg = self.helper.current_file_pkg(view)
+
+    if len(pkg) == 0:
+      self.helper.log("couldn't determine package for current file: " + view.file_name())
+      return
+
+    self.helper.log("running tests for package: " + pkg)
+    self.test_packages(exec_opts, [pkg])
+
+  def test_at_cursor(self, exec_opts):
+    self.helper.log("running current test under cursor")
+    view = self.window.active_view()
+
+    func_name = self.helper.func_name_at_cursor(view)
+
+    if len(func_name) == 0:
+      self.helper.log("no function found near cursor")
+      return
+
+    pkg = self.helper.current_file_pkg(view)
+
+    if len(pkg) == 0:
+      self.helper.log("couldn't determine package for current file: " + view.file_name())
+      return
+
+    self.helper.log("running test: " + pkg + "#" + func_name)
+    self.test_packages(exec_opts, [pkg], [func_name])
