@@ -85,8 +85,8 @@ Here's an example `.sublime-project` which uses a `GOPATH` override and integrat
       // The root package (or namespace) of a project.
       "project_package": "github.com/some/project",
 
-      // The package which should be built when invoking a build.
-      "build_package": "github.com/some/project/cmd/myprogram",
+      // A list of sub-packages relative to project_packages to be included in builds.
+      "build_packages": ["cmd/myprogram"],
 
       // A list of sub-packages relative to project_package to be included in test
       // discovery.
