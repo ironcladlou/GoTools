@@ -90,7 +90,10 @@ Here's an example `.sublime-project` which uses a `GOPATH` override and integrat
 
       // A list of sub-packages relative to project_package to be included in test
       // discovery.
-      "test_packages": ["cmd", "lib", "examples"]
+      "test_packages": ["cmd", "lib", "examples"],
+
+      // If true, runs `go test -v` for verbose output.
+      "verbose_tests": true
     }
   }
 }
