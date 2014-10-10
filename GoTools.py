@@ -31,6 +31,8 @@ class Helper():
     self.project_package = self.get_proj_setting("project_package")
     self.build_packages = self.get_proj_setting("build_packages")
     self.test_packages = self.get_proj_setting("test_packages")
+    self.tagged_test_tags = self.get_proj_setting("tagged_test_tags", [])
+    self.tagged_test_packages = self.get_proj_setting("tagged_test_packages", [])
     self.verbose_tests = self.get_proj_setting("verbose_tests")
 
     if self.go_bin_path is None:
@@ -117,6 +119,34 @@ class Helper():
           found_tags.append(tag)
     
     return found_tags
+
+  def find_test_packages(self):
+    proj_package_dir = None
+
+    for gopath in self.gopath().split(":"):
+      d = os.path.join(gopath, "src", self.project_package)
+      if os.path.exists(d):
+        proj_package_dir = d
+        break
+
+    if proj_package_dir == None:
+      self.log("ERROR: couldn't find project package dir '"
+        + self.project_package + "' in GOPATH: " + self.gopath())
+      return []
+
+    packages = {}
+
+    for pkg_dir in self.test_packages:
+      abs_pkg_dir = os.path.join(proj_package_dir, pkg_dir)
+      self.log("searching for tests in: " + abs_pkg_dir)
+      for root, dirnames, filenames in os.walk(abs_pkg_dir):
+        for filename in fnmatch.filter(filenames, '*_test.go'):
+          abs_test_file = os.path.join(root, filename)
+          rel_test_file = os.path.relpath(abs_test_file, proj_package_dir)
+          test_pkg = os.path.join(self.project_package, os.path.dirname(rel_test_file))
+          packages[test_pkg] = None
+
+    return list(packages.keys())
 
   def go_tool(self, args, stdin=None):
     binary = os.path.join(self.go_bin_path, args[0])
@@ -333,7 +363,12 @@ class GobuildCommand(sublime_plugin.WindowCommand):
     if task == "build":
       self.build(exec_opts)
     elif task == "test_packages":
-      self.test_packages(exec_opts)
+      self.test_packages(exec_opts, self.helper.find_test_packages())
+    elif task == "test_tagged_packages":
+      pkgs = []
+      for p in self.helper.tagged_test_packages:
+        pkgs.append(os.path.join(self.helper.project_package, p))
+      self.test_packages(exec_opts=exec_opts, packages=pkgs, tags=self.helper.tagged_test_tags)
     elif task == "test_at_cursor":
       self.test_at_cursor(exec_opts)
     elif task == "test_current_package":
@@ -364,55 +399,22 @@ class GobuildCommand(sublime_plugin.WindowCommand):
 
     self.window.run_command("exec", exec_opts)
 
-  def test_packages(self, exec_opts, packages = [], patterns = []):
+  def test_packages(self, exec_opts, packages = [], patterns = [], tags = []):
     self.helper.log("running tests")
 
-    proj_package_dir = None
-
-    for gopath in self.helper.gopath().split(":"):
-      d = os.path.join(gopath, "src", self.helper.project_package)
-      if os.path.exists(d):
-        proj_package_dir = d
-        break
-
-    if proj_package_dir == None:
-      self.helper.log("ERROR: couldn't find project package dir '"
-        + self.helper.project_package + "' in GOPATH: " + self.helper.gopath())
-      return
-
-    exec_opts["working_dir"] = proj_package_dir
-
-    test_packages = {}
-
-    if len(packages) > 0:
-      for p in packages:
-        test_packages[p] = None
-    else:
-      for pkg_dir in self.helper.test_packages:
-        abs_pkg_dir = os.path.join(proj_package_dir, pkg_dir)
-        self.helper.log("searching for tests in: " + abs_pkg_dir)
-        for root, dirnames, filenames in os.walk(abs_pkg_dir):
-          for filename in fnmatch.filter(filenames, '*_test.go'):
-            abs_test_file = os.path.join(root, filename)
-            rel_test_file = os.path.relpath(abs_test_file, proj_package_dir)
-            test_pkg = os.path.join(self.helper.project_package, os.path.dirname(rel_test_file))
-            test_packages[test_pkg] = None
-      
-    test_packages = list(test_packages.keys())
-    self.helper.log("test packages: " + str(test_packages))
+    self.helper.log("test packages: " + str(packages))
     self.helper.log("test patterns: " + str(patterns))
 
     cmd = ["go", "test"]
 
-    view = self.window.active_view()
-    tags = self.helper.current_file_tags(view)
     if len(tags) > 0:
       cmd += ["-tags", ",".join(tags)]
 
     if self.helper.verbose_tests:
       cmd.append("-v")
 
-    cmd += test_packages
+    cmd += packages
+
     for p in patterns:
       cmd += ["-run", p]
 
@@ -429,8 +431,10 @@ class GobuildCommand(sublime_plugin.WindowCommand):
       self.helper.log("couldn't determine package for current file: " + view.file_name())
       return
 
+    tags = self.helper.current_file_tags(view)
+
     self.helper.log("running tests for package: " + pkg)
-    self.test_packages(exec_opts, [pkg])
+    self.test_packages(exec_opts=exec_opts, packages=[pkg], tags=tags)
 
   def test_at_cursor(self, exec_opts):
     self.helper.log("running current test under cursor")
@@ -448,5 +452,7 @@ class GobuildCommand(sublime_plugin.WindowCommand):
       self.helper.log("couldn't determine package for current file: " + view.file_name())
       return
 
+    tags = self.helper.current_file_tags(view)
+
     self.helper.log("running test: " + pkg + "#" + func_name)
-    self.test_packages(exec_opts, [pkg], [func_name])
+    self.test_packages(exec_opts=exec_opts, packages=[pkg], patterns=[func_name], tags=tags)

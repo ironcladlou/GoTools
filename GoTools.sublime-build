@@ -14,6 +14,10 @@
       "task": "test_packages"
     },
     {
+      "name": "Run Tagged Tests",
+      "task": "test_tagged_packages"
+    },
+    {
       "name": "Run Test at Cursor",
       "task": "test_at_cursor"
     },

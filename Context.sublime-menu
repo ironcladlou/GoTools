@@ -23,5 +23,12 @@
     "args": {
       "variant": "Run Current Package Tests"
     }
+  },
+  {
+    "command": "build",
+    "caption": "Go Test Tagged",
+    "args": {
+      "variant": "Run Tagged Tests"
+    }
   }
 ]
