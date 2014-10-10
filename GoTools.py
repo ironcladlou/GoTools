@@ -84,13 +84,10 @@ class Helper():
 
   def func_name_at_cursor(self, view):
     func_regions = view.find_by_selector('meta.function')
-    self.log("found functions: " + str(func_regions))
 
     func_name = ""
-
     for r in func_regions:
       if r.contains(self.offset_at_cursor(view)):
-        self.log("found cursor in region: " + str(r))
         lines = view.substr(r).splitlines()
         match = re.match('func.*(Test.+)\(', lines[0])
         if match and match.group(1):
@@ -105,6 +102,21 @@ class Helper():
       return abs_pkg_dir[abs_pkg_dir.index(self.project_package):]
     except:
       return ""
+
+  def current_file_tags(self, view):
+    # TODO: Use a sane way to get the first line of the buffer
+    header = self.buffer_text(view).decode("utf-8").splitlines()[0]
+
+    found_tags = []
+    match = re.match('\/\/\ \+build\ (.*)', header)
+    if match and match.group(1):
+      tags = match.group(1)
+      tags = tags.split(',')
+      for tag in tags:
+        if not tag.startswith('!'):
+          found_tags.append(tag)
+    
+    return found_tags
 
   def go_tool(self, args, stdin=None):
     binary = os.path.join(self.go_bin_path, args[0])
@@ -391,6 +403,11 @@ class GobuildCommand(sublime_plugin.WindowCommand):
     self.helper.log("test patterns: " + str(patterns))
 
     cmd = ["go", "test"]
+
+    view = self.window.active_view()
+    tags = self.helper.current_file_tags(view)
+    if len(tags) > 0:
+      cmd += ["-tags", ",".join(tags)]
 
     if self.helper.verbose_tests:
       cmd.append("-v")
