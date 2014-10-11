@@ -71,7 +71,6 @@ class GoToolsSettings():
     self.tagged_test_tags = settings.get("tagged_test_tags", [])
     self.tagged_test_packages = settings.get("tagged_test_packages", [])
     self.verbose_tests = settings.get("verbose_tests", False)
-    print('  \n'.join("%s: %s" % item for item in vars(settings).items()))
 
 class Logger():
   def __init__(self, settings):
