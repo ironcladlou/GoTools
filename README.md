@@ -15,19 +15,19 @@ GoTools is a a [Sublime Text 3](http://www.sublimetext.com) plugin inspired by [
 
 ## Installation
 
-The plugin assumes all supporting binaries are located in `go_bin_path` as defined in the settings. Use `go get` to install them, e.g.:
+#### Prerequisites
+
+GoTools will attempt to find `godef`, `gofmt`, and `gocode` using GOPATH and GOROOT as resolved according to your GoTools settings. If you don't have these binaries, use `go get` to install them, e.g.:
 
     go get -v code.google.com/p/rog-go/exp/cmd/godef
     go get -v code.google.com/p/go.tools/cmd/gofmt
     go get -v github.com/nsf/gocode
 
-To install the plugin (TODO: Package Control support):
-
-#### OSX
+#### Install on OSX
 
     git clone git@github.com:ironcladlou/GoTools.git ~/Library/Application\ Support/Sublime\ Text\ 3/Packages/GoTools
 
-#### Linux
+#### Install on Linux
 
     git clone git@github.com:ironcladlou/GoTools.git ~/.config/sublime-text-3/Packages/GoTools
 
@@ -37,37 +37,23 @@ Create a GoTools settings file through the Sublime Text preferences menu using `
 
 ```
 {
-  // All go tools other than go itself will be executed from this directory. Required.
-  "go_bin_path": "/home/user/go/bin",
+  // The GOPATH used for plugin operations. May be overridden and used as a
+  // substitution value in the gopath project setting. Defaults to $GOPATH.
+  "gopath": "",
 
-  // The global GOPATH to use for go tool executions. Available in project settings
-  // "gopath" values as ${gopath}. Required.
-  "gopath": "/home/user/go",
-
-  // The go installation directory. Required.
-  "goroot": "/usr/lib64/golang",
-
-  // The go architecture to use for package resolution. Required.
-  "goarch": "amd64",
-
-  // The go OS to use for package resolution. Required.
-  "goos": "linux",
-
-  // Enable gofmt formatting after a file is saved. Optional.
+  // Enable gofmt formatting after a file is saved.
   "gofmt_enabled": true,
 
-  // Instead of `gofmt`, use another command (e.g. goimports). Optional.
+  // Instead of `gofmt`, use another command (e.g. goimports).
   "gofmt_cmd": "gofmt",
 
-  // Enable gocode autocompletion support. Optional.
+  // Enable gocode autocompletion support.
   "gocode_enabled": true,
 
-  // Enable GoTools console debug output. Optional.
-  "debug_enabled": false,
-
-  // Use GoTools for all *.go files
-  "extensions": ["go"]
+  // Enable GoTools console debug output.
+  "debug_enabled": false
 }
+
 ```
 
 Create a GoTools settings key in a Sublime Text `.sublime-project` file (using the `Project -> Edit Project` menu).
@@ -153,7 +139,7 @@ Some projects make use of a dependency isolation tool such as [Godep](https://gi
 
 With such a project, to get the best suggestions from gocode, it's necessary to configure the gocode daemon prior to client suggestion requests to inform gocode about the locations of compiled packages for the project.
 
-GoTools will infer the correct gocode `lib-path` by constructing a path using the `goroot`, `goarch`, `goos`, and `gopath` settings entries. For gocode support to work as expected, it's important to set each of those values in the settings.
+GoTools will infer the correct gocode `lib-path` by constructing a path which incorporates all project `GOPATH` entries.
 
 #### Using with GoSublime
 
