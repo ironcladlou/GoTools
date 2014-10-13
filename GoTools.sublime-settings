@@ -1,7 +1,7 @@
 {
   // The GOPATH used for plugin operations. May be overridden and used as a
   // substitution value in the gopath project setting. Defaults to $GOPATH.
-  "gopath": "",
+  // "gopath": "",
 
   // Enable gofmt formatting after a file is saved.
   "gofmt_enabled": true,
