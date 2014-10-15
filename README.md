@@ -78,6 +78,13 @@ Here's an example `.sublime-project` which uses a `GOPATH` override and integrat
       // discovery.
       "test_packages": ["cmd", "lib", "examples"],
 
+      // A list of sub-packages relative to project_packages to be identified as tagged
+      // tests during test discovery.
+      "tagged_test_packages": ["test/integration"],
+
+      // The tags to apply to `go test` when running tagged tests.
+      "tagged_test_tags": ["integration"],
+
       // If true, runs `go test -v` for verbose output.
       "verbose_tests": true,
 
@@ -124,13 +131,14 @@ A `Clean Build` variant is also provided which recursively deletes all `GOPATH/p
 
 ### Go tests
 
-Test support is provided as build variants via the GoTools build system, and is backed by `go test`.
+Test support is provided as build variants via the GoTools build system, and is backed by `go test`. GoTools attempts to "do what you mean" depending on context. For instance, when using `Run Test at Cursor` in test file which requires an `integration` Go build tag, GoTools will notice this and automatically add `-tags integration` to the test execution.
 
-The following GoTools build variants allow a variety of test executions:
+The following GoTools build variants are available:
 
   * `Run Tests` discovers test packages based on the `project_package` and `test_packages` settings relative to the project `gopath` and executes them.
   * `Run Test at Cursor` runs a single test method at or surrounding the cursor.
   * `Run Current Package Tests` runs tests for the package containing the current file.
+  * `Run Tagged Tests` is like `Run Tests` but for the packages specified in the `tagged_packages` setting.
   * `Run Last Test` re-runs the last test variant that was executed.
 
 ## Notes
