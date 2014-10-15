@@ -24,6 +24,10 @@
     {
       "name": "Run Current Package Tests",
       "task": "test_current_package"
+    },
+    {
+      "name": "Run Last Test",
+      "task": "test_last"
     }
   ]
 }

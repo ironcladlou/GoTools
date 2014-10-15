@@ -25,6 +25,7 @@ def load_goenv():
 
 # Keep a plugin module cache of the Go runtime information.
 GOENV = load_goenv()
+print("GoTools: Initialized using Go environment: "+str(GOENV))
 
 class MergedSettings():
   def __init__(self):
@@ -71,6 +72,7 @@ class GoToolsSettings():
     self.tagged_test_tags = settings.get("tagged_test_tags", [])
     self.tagged_test_packages = settings.get("tagged_test_packages", [])
     self.verbose_tests = settings.get("verbose_tests", False)
+    self.test_timeout = settings.get("test_timeout", None)
 
 class Logger():
   def __init__(self, settings):
@@ -216,7 +218,6 @@ class GodefCommand(sublime_plugin.WindowCommand):
         self.logger.status("godef failed: Please check console log for details")
         self.logger.error("timed out waiting for file load - giving up")
 
-
 class GofmtOnSave(sublime_plugin.EventListener):
   def on_pre_save(self, view):
     if not GoBuffers.is_go_source(view): return
@@ -322,7 +323,6 @@ class GocodeSuggestions(sublime_plugin.EventListener):
       GocodeSuggestions.CLASS_SYMBOLS.get(json["class"], "?"))
     return (label, json["name"])
 
-
 class GobuildCommand(sublime_plugin.WindowCommand):
   def run(self, cmd = None, shell_cmd = None, file_regex = "", line_regex = "", working_dir = "",
           encoding = "utf-8", env = {}, quiet = False, kill = False,
@@ -369,6 +369,9 @@ class GobuildCommand(sublime_plugin.WindowCommand):
       self.test_at_cursor(exec_opts)
     elif task == "test_current_package":
       self.test_current_package(exec_opts)
+    elif task == "test_last":
+      self.logger.log("re-running last test")
+      self.window.run_command("exec", self.last_test_exec_opts)
     else:
       self.logger.log("invalid task: " + task)
 
@@ -409,6 +412,9 @@ class GobuildCommand(sublime_plugin.WindowCommand):
     if self.settings.verbose_tests:
       cmd.append("-v")
 
+    if self.settings.test_timeout:
+      cmd += ["-timeout", self.settings.test_timeout]
+
     cmd += packages
 
     for p in patterns:
@@ -416,6 +422,8 @@ class GobuildCommand(sublime_plugin.WindowCommand):
 
     exec_opts["cmd"] = cmd
 
+    # Cache the execution for easy recall
+    self.last_test_exec_opts = exec_opts
     self.window.run_command("exec", exec_opts)
 
   def test_current_package(self, exec_opts):
