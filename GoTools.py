@@ -369,6 +369,9 @@ class GobuildCommand(sublime_plugin.WindowCommand):
       self.test_at_cursor(exec_opts)
     elif task == "test_current_package":
       self.test_current_package(exec_opts)
+    elif task == "test_last":
+      self.logger.log("re-running last test")
+      self.window.run_command("exec", self.last_test_exec_opts)
     else:
       self.logger.log("invalid task: " + task)
 
@@ -419,6 +422,8 @@ class GobuildCommand(sublime_plugin.WindowCommand):
 
     exec_opts["cmd"] = cmd
 
+    # Cache the execution for easy recall
+    self.last_test_exec_opts = exec_opts
     self.window.run_command("exec", exec_opts)
 
   def test_current_package(self, exec_opts):

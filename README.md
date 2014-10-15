@@ -79,7 +79,10 @@ Here's an example `.sublime-project` which uses a `GOPATH` override and integrat
       "test_packages": ["cmd", "lib", "examples"],
 
       // If true, runs `go test -v` for verbose output.
-      "verbose_tests": true
+      "verbose_tests": true,
+
+      // If set to a Go time string, test timeouts are set via the `-timeout` flag.
+      // "test_timeout": "10s"
     }
   }
 }
@@ -128,6 +131,7 @@ The following GoTools build variants allow a variety of test executions:
   * `Run Tests` discovers test packages based on the `project_package` and `test_packages` settings relative to the project `gopath` and executes them.
   * `Run Test at Cursor` runs a single test method at or surrounding the cursor.
   * `Run Current Package Tests` runs tests for the package containing the current file.
+  * `Run Last Test` re-runs the last test variant that was executed.
 
 ## Notes
 
