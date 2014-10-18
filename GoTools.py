@@ -147,9 +147,8 @@ class ToolRunner():
     
       p = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, env=env)
       stdout, stderr = p.communicate(input=stdin, timeout=5)
-      output = stdout.decode("utf-8") + stderr.decode("utf-8")
       p.wait(timeout=5)
-      return output, p.returncode
+      return stdout.decode("utf-8"), stderr.decode("utf-8"), p.returncode
     except subprocess.CalledProcessError as e:
       raise
 
@@ -170,7 +169,7 @@ class GodefCommand(sublime_plugin.WindowCommand):
     self.offset = Buffers.offset_at_cursor(view)
     self.filename = view.file_name()
 
-    location, rc = self.runner.run("godef", ["-f", self.filename, "-o", str(self.offset)])
+    location, err, rc = self.runner.run("godef", ["-f", self.filename, "-o", str(self.offset)])
     self.logger.log("godef output: " + location.rstrip())
     
     if rc != 0:
@@ -218,53 +217,47 @@ class GodefCommand(sublime_plugin.WindowCommand):
         self.logger.error("timed out waiting for file load - giving up")
 
 class GofmtOnSave(sublime_plugin.EventListener):
-  def on_pre_save(self, view):
+  def on_post_save(self, view):
     if not GoBuffers.is_go_source(view): return
 
     settings = GoToolsSettings()
     if not settings.gofmt_enabled:
       return
 
-    view.run_command('gofmt')
+    view.window().run_command('gofmt')
 
-class GofmtCommand(sublime_plugin.TextCommand):
+class GofmtCommand(sublime_plugin.WindowCommand):
   def is_enabled(self):
-    return GoBuffers.is_go_source(self.view)
+    return GoBuffers.is_go_source(self.window.active_view())
 
-  def run(self, edit):
+  def run(self):
     settings = GoToolsSettings()
     logger = Logger(settings)
     runner = ToolRunner(settings, logger)
 
-    # TODO: inefficient
-    file_text = sublime.Region(0, self.view.size())
-    file_text_utf = self.view.substr(file_text).encode('utf-8')
-    
-    output, rc = runner.run(settings.gofmt_cmd, ["-e"], stdin=Buffers.buffer_text(self.view))
-    
-    # first-pass support for displaying syntax errors in an output panel
-    win = sublime.active_window()
-    output_view = win.create_output_panel('gotools_syntax_errors')
-    output_view.set_scratch(True)
-    output_view.settings().set("result_file_regex","^(.*):(\d+):(\d+):(.*)$")
-    output_view.run_command("select_all")
-    output_view.run_command("right_delete")
+    view = self.window.active_view()
+    win = self.window
+
+    stdout, stderr, rc = runner.run(settings.gofmt_cmd, ["-e", "-w", view.file_name()])
 
     if rc == 2:
-      syntax_output = output.replace("<standard input>", self.view.file_name())
-      output_view.run_command('append', {'characters': syntax_output})
+      # first-pass support for displaying syntax errors in an output panel
+      output_view = win.create_output_panel('gotools_syntax_errors')
+      output_view.set_scratch(True)
+      output_view.settings().set("result_file_regex","^(.*):(\d+):(\d+):(.*)$")
+      output_view.run_command("select_all")
+      output_view.run_command("right_delete")
+      output_view.run_command('append', {'characters': stderr})
       win.run_command("show_panel", {"panel": "output.gotools_syntax_errors"})
-      logger.log("DEBUG: syntax errors:\n" + output)
       return
 
     if rc != 0:
-      logger.log("unknown gofmt error: " + str(rc))
+      logger.log("unknown gofmt error (" + str(rc) + ") stderr:\n" + stderr)
       return
 
     win.run_command("hide_panel", {"panel": "output.gotools_syntax_errors"})
 
-    self.view.replace(edit, sublime.Region(0, self.view.size()), output)
-    logger.log("replaced buffer with gofmt output")
+    win.run_command("revert")
 
 class GocodeSuggestions(sublime_plugin.EventListener):
   CLASS_SYMBOLS = {
@@ -284,9 +277,9 @@ class GocodeSuggestions(sublime_plugin.EventListener):
     if not settings.gocode_enabled: return
 
     # set the lib-path for gocode's lookups
-    _, rc = runner.run("gocode", ["set", "lib-path", GocodeSuggestions.gocode_libpath(settings)])
+    _, _, rc = runner.run("gocode", ["set", "lib-path", GocodeSuggestions.gocode_libpath(settings)])
 
-    suggestionsJsonStr, rc = runner.run("gocode", ["-f=json", "autocomplete", 
+    suggestionsJsonStr, stderr, rc = runner.run("gocode", ["-f=json", "autocomplete", 
       str(Buffers.offset_at_cursor(view))], stdin=Buffers.buffer_text(view))
 
     # TODO: restore gocode's lib-path
