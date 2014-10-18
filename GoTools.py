@@ -153,7 +153,6 @@ class ToolRunner():
     except subprocess.CalledProcessError as e:
       raise
 
-
 class GodefCommand(sublime_plugin.WindowCommand):
   def is_enabled(self):
     return GoBuffers.is_go_source(self.window.active_view())
@@ -171,45 +170,45 @@ class GodefCommand(sublime_plugin.WindowCommand):
     self.offset = Buffers.offset_at_cursor(view)
     self.filename = view.file_name()
 
-    # Execute the command asynchronously    
-    sublime.set_timeout_async(self.godef, 0)
-
-  def godef(self):
     location, rc = self.runner.run("godef", ["-f", self.filename, "-o", str(self.offset)])
+    self.logger.log("godef output: " + location.rstrip())
     
     if rc != 0:
       self.logger.status("no definition found")
+      return
+
+    # godef is sometimes returning this junk as part of the output,
+    # so just cut anything prior to the first path separator
+    location = location.rstrip()[location.find('/'):].split(":")
+
+    if len(location) != 3:
+      self.logger.status("no definition found")
+      return
+
+    file = location[0]
+    row = int(location[1])
+    col = int(location[2])
+
+    if not os.path.isfile(file):
+      self.logger.log("WARN: file indicated by godef not found: " + file)
+      self.logger.status("godef failed: Please enable debugging and check console log")
+      return
+    
+    if view.file_name() == file:
+      self.logger.log("opening definition at " + str(row) + ":" + str(col))
+      self.show_location(view, row, col, 1)
     else:
-      self.logger.log("godef output: " + location.rstrip())
-
-      # godef is sometimes returning this junk as part of the output,
-      # so just cut anything prior to the first path separator
-      location = location.rstrip()[location.find('/'):].split(":")
-
-      if len(location) != 3:
-        self.logger.log("WARN: malformed location from godef: " + str(location))
-        self.logger.status("godef failed: Please enable debugging and check console log")
-        return
-
-      file = location[0]
-      row = int(location[1])
-      col = int(location[2])
-
-      if not os.path.isfile(file):
-        self.logger.log("WARN: file indicated by godef not found: " + file)
-        self.logger.status("godef failed: Please enable debugging and check console log")
-        return
-
       self.logger.log("opening definition at " + file + ":" + str(row) + ":" + str(col))
-      view = self.window.open_file(file)
-      sublime.set_timeout(lambda: self.show_location(view, row, col), 10)
+      godef_view = self.window.open_file(file)
+      sublime.set_timeout(lambda: self.show_location(godef_view, row, col), 10)
 
   def show_location(self, view, row, col, retries=0):
     if not view.is_loading():
       pt = view.text_point(row-1, 0)
+
       view.sel().clear()
       view.sel().add(sublime.Region(pt))
-      view.show(pt)
+      view.show_at_center(pt)
     else:
       if retries < 10:
         self.logger.status('waiting for file to load...')
