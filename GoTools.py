@@ -231,33 +231,60 @@ class GofmtCommand(sublime_plugin.WindowCommand):
     return GoBuffers.is_go_source(self.window.active_view())
 
   def run(self):
-    settings = GoToolsSettings()
-    logger = Logger(settings)
-    runner = ToolRunner(settings, logger)
+    self.settings = GoToolsSettings()
+    self.logger = Logger(self.settings)
+    self.runner = ToolRunner(self.settings, self.logger)
 
     view = self.window.active_view()
     win = self.window
 
-    stdout, stderr, rc = runner.run(settings.gofmt_cmd, ["-e", "-w", view.file_name()])
+    stdout, stderr, rc = self.runner.run(self.settings.gofmt_cmd, ["-e", "-w", view.file_name()])
 
+    self.clear_syntax_errors()
     if rc == 2:
-      # first-pass support for displaying syntax errors in an output panel
-      output_view = win.create_output_panel('gotools_syntax_errors')
-      output_view.set_scratch(True)
-      output_view.settings().set("result_file_regex","^(.*):(\d+):(\d+):(.*)$")
-      output_view.run_command("select_all")
-      output_view.run_command("right_delete")
-      output_view.run_command('append', {'characters': stderr})
-      win.run_command("show_panel", {"panel": "output.gotools_syntax_errors"})
+      self.show_syntax_errors(stderr)
       return
 
     if rc != 0:
-      logger.log("unknown gofmt error (" + str(rc) + ") stderr:\n" + stderr)
+      self.logger.log("unknown gofmt error (" + str(rc) + ") stderr:\n" + stderr)
       return
 
+    # Hide syntax errors and reload the file.
+    # TODO: investigate the slight flicker.
     win.run_command("hide_panel", {"panel": "output.gotools_syntax_errors"})
-
     win.run_command("revert")
+
+  def clear_syntax_errors(self):
+    view = self.window.active_view()
+    view.sel().clear()
+    view.erase_regions("mark")
+
+  # Display an output panel containing the syntax errors, and set gutter marks for each error.
+  def show_syntax_errors(self, stderr):
+    output_view = self.window.create_output_panel('gotools_syntax_errors')
+    output_view.set_scratch(True)
+    output_view.settings().set("result_file_regex","^(.*):(\d+):(\d+):(.*)$")
+    output_view.run_command("select_all")
+    output_view.run_command("right_delete")
+    output_view.run_command('append', {'characters': stderr})
+    self.window.run_command("show_panel", {"panel": "output.gotools_syntax_errors"})
+
+    view = self.window.active_view()
+    marks = []
+    for error in stderr.splitlines():
+      match = re.match("(.*):(\d+):(\d+):", error)
+      if not match or not match.group(2):
+        self.logger.log("skipping unrecognizable error:\n" + error + "\nmatch:" + str(match))
+        continue
+
+      row = int(match.group(2))
+      pt = view.text_point(row-1, 0)
+      self.logger.log("adding mark at row " + str(row))
+      marks.append(sublime.Region(pt))
+
+    if len(marks) > 0:
+      view.add_regions("mark", marks, "mark", "dot", sublime.DRAW_STIPPLED_UNDERLINE | sublime.PERSISTENT)
+      view.show_at_center(marks[0])
 
 class GocodeSuggestions(sublime_plugin.EventListener):
   CLASS_SYMBOLS = {
