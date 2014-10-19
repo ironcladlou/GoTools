@@ -217,59 +217,67 @@ class GodefCommand(sublime_plugin.WindowCommand):
         self.logger.error("timed out waiting for file load - giving up")
 
 class GofmtOnSave(sublime_plugin.EventListener):
-  def on_post_save(self, view):
+  def on_pre_save(self, view):
     if not GoBuffers.is_go_source(view): return
 
     settings = GoToolsSettings()
     if not settings.gofmt_enabled:
       return
 
-    view.window().run_command('gofmt')
+    view.run_command('gofmt')
 
-class GofmtCommand(sublime_plugin.WindowCommand):
+class GofmtCommand(sublime_plugin.TextCommand):
   def is_enabled(self):
-    return GoBuffers.is_go_source(self.window.active_view())
+    return GoBuffers.is_go_source(self.view)
 
-  def run(self):
+  def run(self, edit):
     self.settings = GoToolsSettings()
     self.logger = Logger(self.settings)
     self.runner = ToolRunner(self.settings, self.logger)
 
-    view = self.window.active_view()
-    win = self.window
+    stdout, stderr, rc = self.runner.run(self.settings.gofmt_cmd, ["-e"], stdin=Buffers.buffer_text(self.view))
 
-    stdout, stderr, rc = self.runner.run(self.settings.gofmt_cmd, ["-e", "-w", view.file_name()])
+    # Clear previous syntax error marks
+    self.view.erase_regions("mark")
 
-    self.clear_syntax_errors()
     if rc == 2:
+      # Show syntax errors and bail
       self.show_syntax_errors(stderr)
       return
 
     if rc != 0:
+      # Ermmm...
       self.logger.log("unknown gofmt error (" + str(rc) + ") stderr:\n" + stderr)
       return
 
-    # Hide syntax errors and reload the file.
-    # TODO: investigate the slight flicker.
-    win.run_command("hide_panel", {"panel": "output.gotools_syntax_errors"})
-    win.run_command("revert")
+    # Everything's good, hide the syntax error panel
+    sublime.active_window().run_command("hide_panel", {"panel": "output.gotools_syntax_errors"})
 
-  def clear_syntax_errors(self):
-    view = self.window.active_view()
-    view.sel().clear()
-    view.erase_regions("mark")
+    # Remember the viewport position. When replacing the buffer, Sublime likes to jitter the
+    # viewport around for some reason.
+    self.prev_viewport_pos = self.view.viewport_position()
+
+    # Replace the buffer with gofmt output.
+    self.view.replace(edit, sublime.Region(0, self.view.size()), stdout)
+
+    # Restore the viewport on the main GUI thread (which is the only way this works).
+    sublime.set_timeout(self.restore_viewport, 0)
+
+  def restore_viewport(self):
+    self.view.set_viewport_position(self.prev_viewport_pos, False)
 
   # Display an output panel containing the syntax errors, and set gutter marks for each error.
   def show_syntax_errors(self, stderr):
-    output_view = self.window.create_output_panel('gotools_syntax_errors')
+    output_view = sublime.active_window().create_output_panel('gotools_syntax_errors')
     output_view.set_scratch(True)
     output_view.settings().set("result_file_regex","^(.*):(\d+):(\d+):(.*)$")
     output_view.run_command("select_all")
     output_view.run_command("right_delete")
-    output_view.run_command('append', {'characters': stderr})
-    self.window.run_command("show_panel", {"panel": "output.gotools_syntax_errors"})
 
-    view = self.window.active_view()
+    syntax_output = stderr.replace("<standard input>", self.view.file_name())
+    output_view.run_command('append', {'characters': syntax_output})
+    sublime.active_window().run_command("show_panel", {"panel": "output.gotools_syntax_errors"})
+
     marks = []
     for error in stderr.splitlines():
       match = re.match("(.*):(\d+):(\d+):", error)
@@ -278,13 +286,12 @@ class GofmtCommand(sublime_plugin.WindowCommand):
         continue
 
       row = int(match.group(2))
-      pt = view.text_point(row-1, 0)
+      pt = self.view.text_point(row-1, 0)
       self.logger.log("adding mark at row " + str(row))
       marks.append(sublime.Region(pt))
 
     if len(marks) > 0:
-      view.add_regions("mark", marks, "mark", "dot", sublime.DRAW_STIPPLED_UNDERLINE | sublime.PERSISTENT)
-      view.show_at_center(marks[0])
+      self.view.add_regions("mark", marks, "mark", "dot", sublime.DRAW_STIPPLED_UNDERLINE | sublime.PERSISTENT)
 
 class GocodeSuggestions(sublime_plugin.EventListener):
   CLASS_SYMBOLS = {
