@@ -15,7 +15,10 @@
   // Enable GoTools console debug output.
   "debug_enabled": false,
 
-  // Optional: Use GoTools for all *.go files.
+  // Use tabs for .go files
+  "translate_tabs_to_spaces": false,
+
+  // Use GoTools for all *.go files.
   "extensions":
   [
     "go"
