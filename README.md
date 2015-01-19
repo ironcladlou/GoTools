@@ -7,11 +7,10 @@ GoTools is a a [Sublime Text 3](http://www.sublimetext.com) plugin inspired by [
 ## Features
 
 * Jump to symbol/declaration with [godef](http://godoc.org/code.google.com/p/rog-go/exp/cmd/godef).
-* Format and syntax check on save with [gofmt](http://godoc.org/code.google.com/p/go.tools/cmd/gofmt).
+* Format and syntax check on save with [gofmt](https://golang.org/cmd/gofmt/).
 * Autocompletion support using [gocode](https://github.com/nsf/gocode).
 * Build and test integration.
 * Improved syntax support (borrowed from [GoSublime](https://github.com/DisposaBoy/GoSublime)).
-
 
 ## Installation
 
@@ -20,7 +19,6 @@ GoTools is a a [Sublime Text 3](http://www.sublimetext.com) plugin inspired by [
 GoTools will attempt to find `godef`, `gofmt`, and `gocode` using GOPATH and GOROOT as resolved according to your GoTools settings. If you don't have these binaries, use `go get` to install them, e.g.:
 
     go get -v code.google.com/p/rog-go/exp/cmd/godef
-    go get -v code.google.com/p/go.tools/cmd/gofmt
     go get -v github.com/nsf/gocode
 
 #### Install on OSX
