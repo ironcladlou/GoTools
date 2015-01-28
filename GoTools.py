@@ -47,6 +47,9 @@ class GoToolsSettings():
     self.goos = GOENV["GOHOSTOS"]
     self.go_tools = GOENV["GOTOOLDIR"]
 
+    # The GOROOT bin directory is namespaced with the GOOS and GOARCH.
+    self.gorootbin = os.path.join(self.goroot, "bin", self.goos + "_" + self.goarch)
+
     if not self.goroot or not self.goarch or not self.goos or not self.go_tools:
       raise Exception("GoTools: ERROR: Couldn't detect Go runtime information from `go env`.")
 
@@ -126,9 +129,11 @@ class ToolRunner():
 
   def run(self, tool, args=[], stdin=None):
     toolpath = None
-    searchpaths = self.settings.gopath.split(':') + [self.settings.goroot]
+    searchpaths = list(map(lambda x: os.path.join(x, 'bin'), self.settings.gopath.split(':')))
+    searchpaths.append(self.settings.gorootbin)
+
     for path in searchpaths:
-      candidate = os.path.join(path, 'bin', tool)
+      candidate = os.path.join(path, tool)
       if os.path.isfile(candidate):
         toolpath = candidate
         break
