@@ -130,6 +130,7 @@ class ToolRunner():
   def run(self, tool, args=[], stdin=None):
     toolpath = None
     searchpaths = list(map(lambda x: os.path.join(x, 'bin'), self.settings.gopath.split(':')))
+    searchpaths.append(os.path.join(self.settings.goroot, 'bin'))
     searchpaths.append(self.settings.gorootbin)
 
     for path in searchpaths:
@@ -139,7 +140,7 @@ class ToolRunner():
         break
 
     if not toolpath:
-      raise Exception("Couldn't find Go tool: " + tool)
+      raise Exception("Couldn't find Go tool " + tool + " in: \n" + "\n".join(searchpaths))
 
     cmd = [toolpath] + args
     try:
