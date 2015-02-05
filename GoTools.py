@@ -47,11 +47,11 @@ class GoToolsSettings():
     self.goos = GOENV["GOHOSTOS"]
     self.go_tools = GOENV["GOTOOLDIR"]
 
-    # The GOROOT bin directory is namespaced with the GOOS and GOARCH.
-    self.gorootbin = os.path.join(self.goroot, "bin", self.goos + "_" + self.goarch)
-
     if not self.goroot or not self.goarch or not self.goos or not self.go_tools:
       raise Exception("GoTools: ERROR: Couldn't detect Go runtime information from `go env`.")
+
+    # The GOROOT bin directory is namespaced with the GOOS and GOARCH.
+    self.gorootbin = os.path.join(self.goroot, "bin", self.goos + "_" + self.goarch)
 
     # For GOPATH, env < plugin < project, and project supports replacement of
     # ${gopath} with whatever preceded in the hierarchy.
