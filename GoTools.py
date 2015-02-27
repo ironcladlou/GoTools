@@ -241,7 +241,7 @@ class GofmtCommand(sublime_plugin.TextCommand):
     self.logger = Logger(self.settings)
     self.runner = ToolRunner(self.settings, self.logger)
 
-    stdout, stderr, rc = self.runner.run(self.settings.gofmt_cmd, ["-e"], stdin=Buffers.buffer_text(self.view))
+    stdout, stderr, rc = self.runner.run(self.settings.gofmt_cmd, ["-e", "-s"], stdin=Buffers.buffer_text(self.view))
 
     # Clear previous syntax error marks
     self.view.erase_regions("mark")
