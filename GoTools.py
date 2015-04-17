@@ -128,21 +128,7 @@ class ToolRunner():
     self.logger = logger
 
   def run(self, tool, args=[], stdin=None):
-    toolpath = None
-    searchpaths = list(map(lambda x: os.path.join(x, 'bin'), self.settings.gopath.split(':')))
-    searchpaths.append(os.path.join(self.settings.goroot, 'bin'))
-    searchpaths.append(self.settings.gorootbin)
-
-    for path in searchpaths:
-      candidate = os.path.join(path, tool)
-      if os.path.isfile(candidate):
-        toolpath = candidate
-        break
-
-    if not toolpath:
-      raise Exception("Couldn't find Go tool " + tool + " in: \n" + "\n".join(searchpaths))
-
-    cmd = [toolpath] + args
+    cmd = self.build_command(tool, args)
     try:
       self.logger.log("spawning process:")
       self.logger.log("-> GOPATH=" + self.settings.gopath)
@@ -157,6 +143,37 @@ class ToolRunner():
       return stdout.decode("utf-8"), stderr.decode("utf-8"), p.returncode
     except subprocess.CalledProcessError as e:
       raise
+
+  def run_nonblock(self, tool, args=[], stdin=None, stdout=PIPE, stderr=PIPE):
+    cmd = self.build_command(tool, args)
+    try:
+      self.logger.log("spawning process:")
+      self.logger.log("-> GOPATH=" + self.settings.gopath)
+      self.logger.log("-> " + ' '.join(cmd))
+
+      env = os.environ.copy()
+      env["GOPATH"] = self.settings.gopath
+    
+      return Popen(cmd, stdout=stdout, stderr=stderr, env=env, universal_newlines=True)
+    except subprocess.CalledProcessError as e:
+      raise
+
+  def build_command(self, tool, args):
+    toolpath = None
+    searchpaths = list(map(lambda x: os.path.join(x, 'bin'), self.settings.gopath.split(':')))
+    searchpaths.append(os.path.join(self.settings.goroot, 'bin'))
+    searchpaths.append(self.settings.gorootbin)
+
+    for path in searchpaths:
+      candidate = os.path.join(path, tool)
+      if os.path.isfile(candidate):
+        toolpath = candidate
+        break
+
+    if not toolpath:
+      raise Exception("Couldn't find Go tool " + tool + " in: \n" + "\n".join(searchpaths))
+
+    return [toolpath] + args
 
 class GodefCommand(sublime_plugin.WindowCommand):
   def is_enabled(self):
@@ -543,3 +560,60 @@ class GobuildCommand(sublime_plugin.WindowCommand):
           found_tags.append(tag)
     
     return found_tags
+
+class GodebugCommand(sublime_plugin.WindowCommand):
+  def is_enabled(self):
+    return GoBuffers.is_go_source(self.window.active_view())
+
+  def run(self):
+    settings = GoToolsSettings()
+    self.logger = Logger(settings)
+    self.runner = ToolRunner(settings, self.logger)
+
+    # Find and store the current filename and byte offset at the
+    # cursor location
+    view = self.window.active_view()
+    row, col = view.rowcol(view.sel()[0].begin())
+
+    filename = view.file_name()
+
+    output_view = sublime.active_window().create_output_panel('gotools_debug_log')
+    output_view.set_scratch(True)
+    output_view.run_command("select_all")
+    output_view.run_command("right_delete")
+    sublime.active_window().run_command("show_panel", {"panel": "output.gotools_debug_log"})
+
+
+    p = self.runner.run_nonblock("dlv", ["-log=true", "/tmp/integrationprog"], stdin=None, stdout=PIPE, stderr=None)
+    sublime.set_timeout_async(lambda: self.read_debugger_log(p, output_view), 0)
+
+  def read_debugger_log(self, proc, output_view):
+    self.logger.log(">>> begin debugger log")
+
+    reason = "normally"
+    try:
+      for line in proc.stdout:
+        output_view.run_command('append', {'characters': line})
+    except Exception as err:
+      reason = err
+
+    self.logger.log("<<< end debuger log (exited: "+ reason +")")
+
+class GoDebugBreakCommand(sublime_plugin.WindowCommand):
+  def is_enabled(self):
+    return GoBuffers.is_go_source(self.window.active_view())
+
+  def run(self):
+    settings = GoToolsSettings()
+    self.logger = Logger(settings)
+    self.runner = ToolRunner(settings, self.logger)
+
+    # Find and store the current filename and byte offset at the
+    # cursor location
+    view = self.window.active_view()
+    row, col = view.rowcol(view.sel()[0].begin())
+
+    filename = view.file_name()
+
+    # make API call to set breakpoint
+    # if success, add mark at location
