@@ -12,6 +12,7 @@ import glob
 import fnmatch
 import re
 import signal
+import time
 from subprocess import Popen, PIPE
 
 # For Go runtime information, verify go on PATH and ask it about itself.
@@ -563,12 +564,15 @@ class GobuildCommand(sublime_plugin.WindowCommand):
     return found_tags
 
 class GodebugCommand(sublime_plugin.WindowCommand):
-  # TODO: Find a way to store the pid in the session so we can clean up
-  # reliably across plugin instances/ST restarts.
-  proc = None
+  PID_SETTING = "gotools.debug.pid"
+
+  Process = None
 
   def is_enabled(self):
     return GoBuffers.is_go_source(self.window.active_view())
+
+  def debugger_running(self):
+    return GodebugCommand.Process or self.window.settings().has(GodebugCommand.PID_SETTING)
 
   def run(self, stop=False):
     settings = GoToolsSettings()
@@ -576,24 +580,45 @@ class GodebugCommand(sublime_plugin.WindowCommand):
     self.runner = ToolRunner(settings, self.logger)
 
     if stop:
-      if not self.__class__.proc:
-        self.logger.log("no debugger running")
-        return
-      self.logger.log("stopping debugger process")
-      self.__class__.proc.send_signal(signal.SIGINT)
-      self.__class__.proc.wait()
-      self.logger.log("debugger stopped")
+      self.stop_debugger()
       return
 
-    # Find and store the current filename and byte offset at the
-    # cursor location
-    view = self.window.active_view()
-    row, col = view.rowcol(view.sel()[0].begin())
+    self.start_debugger()
 
-    filename = view.file_name()
+  def start_debugger(self):
+    if self.debugger_running():
+      self.logger.log("debugger is already running")
+      return
 
-    self.__class__.proc = self.runner.run_nonblock("dlv", ["-log=true", "-headless=true", "/tmp/integrationprog"], stdin=None, stdout=PIPE, stderr=subprocess.STDOUT)
+    GodebugCommand.Process = self.runner.run_nonblock("dlv", ["-log=true", "-headless=true", "/tmp/integrationprog"], stdin=None, stdout=PIPE, stderr=subprocess.STDOUT)
     sublime.set_timeout_async(lambda: self.read_debugger_log(), 10)
+    self.window.settings().set(GodebugCommand.PID_SETTING, GodebugCommand.Process.pid)
+
+  def stop_debugger(self):
+    if not self.debugger_running():
+      self.logger.log("no debugger is running")
+      return
+
+    if GodebugCommand.Process:
+      self.logger.log("stopping debugger process")
+      try:
+        GodebugCommand.Process.send_signal(signal.SIGINT)
+        GodebugCommand.Process.wait()
+      except Exception as e:
+        self.logger.log("error stopping debugger: " + str(e))
+    elif self.window.settings().has(GodebugCommand.PID_SETTING):
+      pid = self.window.settings().get(GodebugCommand.PID_SETTING)
+      self.logger.log("stopping orphaned debugger process with pid " + str(pid))
+      try:
+        os.kill(pid, signal.SIGKILL)
+      except Exception as e:
+        self.logger.log("error signaling debugger process: " + str(e))
+    else:
+      self.logger.log("no internal process or pid; illegal state")
+
+    self.logger.log("debugger stopped")
+    GodebugCommand.Process = None
+    self.window.settings().erase(GodebugCommand.PID_SETTING)
 
   def read_debugger_log(self):
     self.logger.log("started reading debugger log")
@@ -606,7 +631,7 @@ class GodebugCommand(sublime_plugin.WindowCommand):
 
     reason = "<eof>"
     try:
-      for line in self.__class__.proc.stdout:
+      for line in GodebugCommand.Process.stdout:
         output_view.run_command('append', {'characters': line})
     except Exception as err:
       reason = err
