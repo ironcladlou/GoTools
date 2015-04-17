@@ -13,6 +13,8 @@ import fnmatch
 import re
 import signal
 import time
+import http.client
+import json
 from subprocess import Popen, PIPE
 
 # For Go runtime information, verify go on PATH and ask it about itself.
@@ -563,8 +565,10 @@ class GobuildCommand(sublime_plugin.WindowCommand):
     
     return found_tags
 
-class GodebugCommand(sublime_plugin.WindowCommand):
+class GotoolsDebugCommand(sublime_plugin.WindowCommand):
   PID_SETTING = "gotools.debug.pid"
+  # TODO: incorporate into settings unless we're using port randomization
+  DEBUGGER_ADDR = "localhost:9999"
 
   Process = None
 
@@ -572,7 +576,7 @@ class GodebugCommand(sublime_plugin.WindowCommand):
     return GoBuffers.is_go_source(self.window.active_view())
 
   def debugger_running(self):
-    return GodebugCommand.Process or self.window.settings().has(GodebugCommand.PID_SETTING)
+    return GotoolsDebugCommand.Process or self.window.settings().has(GotoolsDebugCommand.PID_SETTING)
 
   def run(self, stop=False):
     settings = GoToolsSettings()
@@ -590,24 +594,29 @@ class GodebugCommand(sublime_plugin.WindowCommand):
       self.logger.log("debugger is already running")
       return
 
-    GodebugCommand.Process = self.runner.run_nonblock("dlv", ["-log=true", "-headless=true", "/tmp/integrationprog"], stdin=None, stdout=PIPE, stderr=subprocess.STDOUT)
+    GotoolsDebugCommand.Process = self.runner.run_nonblock("dlv", [
+      "-log=true",
+      "-addr="+GotoolsDebugCommand.DEBUGGER_ADDR,
+      "-headless=true",
+      "/tmp/integrationprog"
+      ], stdin=None, stdout=PIPE, stderr=subprocess.STDOUT)
     sublime.set_timeout_async(lambda: self.read_debugger_log(), 10)
-    self.window.settings().set(GodebugCommand.PID_SETTING, GodebugCommand.Process.pid)
+    self.window.settings().set(GotoolsDebugCommand.PID_SETTING, GotoolsDebugCommand.Process.pid)
 
   def stop_debugger(self):
     if not self.debugger_running():
       self.logger.log("no debugger is running")
       return
 
-    if GodebugCommand.Process:
+    if GotoolsDebugCommand.Process:
       self.logger.log("stopping debugger process")
       try:
-        GodebugCommand.Process.send_signal(signal.SIGINT)
-        GodebugCommand.Process.wait()
+        GotoolsDebugCommand.Process.send_signal(signal.SIGINT)
+        GotoolsDebugCommand.Process.wait()
       except Exception as e:
         self.logger.log("error stopping debugger: " + str(e))
-    elif self.window.settings().has(GodebugCommand.PID_SETTING):
-      pid = self.window.settings().get(GodebugCommand.PID_SETTING)
+    elif self.window.settings().has(GotoolsDebugCommand.PID_SETTING):
+      pid = self.window.settings().get(GotoolsDebugCommand.PID_SETTING)
       self.logger.log("stopping orphaned debugger process with pid " + str(pid))
       try:
         os.kill(pid, signal.SIGKILL)
@@ -617,8 +626,8 @@ class GodebugCommand(sublime_plugin.WindowCommand):
       self.logger.log("no internal process or pid; illegal state")
 
     self.logger.log("debugger stopped")
-    GodebugCommand.Process = None
-    self.window.settings().erase(GodebugCommand.PID_SETTING)
+    GotoolsDebugCommand.Process = None
+    self.window.settings().erase(GotoolsDebugCommand.PID_SETTING)
 
   def read_debugger_log(self):
     self.logger.log("started reading debugger log")
@@ -631,28 +640,117 @@ class GodebugCommand(sublime_plugin.WindowCommand):
 
     reason = "<eof>"
     try:
-      for line in GodebugCommand.Process.stdout:
+      for line in GotoolsDebugCommand.Process.stdout:
         output_view.run_command('append', {'characters': line})
     except Exception as err:
       reason = err
 
     self.logger.log("finished reading debuger log (closed: "+ reason +")")
 
-class GoDebugBreakCommand(sublime_plugin.WindowCommand):
+class GotoolsDebugBreakCommand(sublime_plugin.WindowCommand):
+  Breakpoints = []
+
   def is_enabled(self):
     return GoBuffers.is_go_source(self.window.active_view())
 
-  def run(self):
+  def run(self, command=None):
     settings = GoToolsSettings()
     self.logger = Logger(settings)
-    self.runner = ToolRunner(settings, self.logger)
 
+    if not command:
+      self.logger.log("command is required")
+      return
+    
+    if command == "add":
+      self.add_break()
+    elif command == "clear":
+      self.clear_break()
+    elif command == "sync":
+      self.sync_breakpoints()
+    else:
+      self.logger.log("unrecognized command: " + command)  
+
+  def add_break(self):
     # Find and store the current filename and byte offset at the
     # cursor location
     view = self.window.active_view()
     row, col = view.rowcol(view.sel()[0].begin())
-
     filename = view.file_name()
 
-    # make API call to set breakpoint
-    # if success, add mark at location
+    conn = http.client.HTTPConnection(GotoolsDebugCommand.DEBUGGER_ADDR)
+    headers = {'Content-type': 'application/json'}
+
+    bp_json = json.dumps({'File': filename, 'Line': row})
+
+    conn.request('POST', '/breakpoints', bp_json, headers)
+
+    response = conn.getresponse()
+    response_str = response.read().decode()
+    conn.close()
+
+    if response.status != 201:
+      self.logger.log("failed to create breakpoint: " + response.reason + ": " + response_str)
+    else:
+      self.logger.log("created breakpoint: " + response_str)
+    
+    self.sync_breakpoints()
+
+  def clear_break(self):
+    view = self.window.active_view()
+    row, col = view.rowcol(view.sel()[0].begin())
+    filename = view.file_name()
+
+    bps = self.get_breakpoints()
+    found = None
+    for bp in bps:
+      if bp['file'] == filename and bp['line'] == row:
+        found = bp
+        break
+
+    if not found:
+      self.logger.log("no breakpoint found at " + filename + ":" + str(row))
+      self.sync_breakpoints()
+      return
+
+    conn = http.client.HTTPConnection(GotoolsDebugCommand.DEBUGGER_ADDR)
+    conn.request('DELETE', '/breakpoints/'+str(bp['id']), headers={'Accept': 'application/json'})
+    response = conn.getresponse()
+    response_str = response.read().decode()
+    conn.close()
+
+    if response.status != 200:
+      self.logger.log("couldn't clear breakpoint: " + response.reason + ":" + response_str)
+    else:
+      self.logger.log("cleared breakpoint: " + str(found))
+
+    self.sync_breakpoints()
+
+  # TODO: the delve API should let us delete by criteria
+  def get_breakpoints(self):
+    conn = http.client.HTTPConnection(GotoolsDebugCommand.DEBUGGER_ADDR)
+    conn.request('GET', '/breakpoints', headers={'Accept': 'application/json'})
+    response = conn.getresponse()
+    response_str = response.read().decode()
+    conn.close()
+
+    if response.status != 200:
+      self.logger.log("couldn't get breakpoints: " + response.reason + ":" + response_str)
+      return []
+
+    return json.loads(response_str)
+
+  def sync_breakpoints(self):
+    bps = self.get_breakpoints()
+    self.logger.log("found breakpoints: " + str(bps))
+
+    view = self.window.active_view()
+    view.erase_regions("breakpoint")
+    marks = []
+    for bp in bps:
+      if bp['file'] == view.file_name():
+        line = bp['line']
+        pt = view.text_point(line, 0)
+        marks.append(sublime.Region(pt))
+
+    if len(marks) > 0:
+      view.add_regions("breakpoint", marks, "mark", "circle", sublime.DRAW_STIPPLED_UNDERLINE | sublime.PERSISTENT)
