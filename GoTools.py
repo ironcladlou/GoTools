@@ -11,6 +11,7 @@ import shutil
 import glob
 import fnmatch
 import re
+import signal
 from subprocess import Popen, PIPE
 
 # For Go runtime information, verify go on PATH and ask it about itself.
@@ -562,13 +563,27 @@ class GobuildCommand(sublime_plugin.WindowCommand):
     return found_tags
 
 class GodebugCommand(sublime_plugin.WindowCommand):
+  # TODO: Find a way to store the pid in the session so we can clean up
+  # reliably across plugin instances/ST restarts.
+  proc = None
+
   def is_enabled(self):
     return GoBuffers.is_go_source(self.window.active_view())
 
-  def run(self):
+  def run(self, stop=False):
     settings = GoToolsSettings()
     self.logger = Logger(settings)
     self.runner = ToolRunner(settings, self.logger)
+
+    if stop:
+      if not self.__class__.proc:
+        self.logger.log("no debugger running")
+        return
+      self.logger.log("stopping debugger process")
+      self.__class__.proc.send_signal(signal.SIGINT)
+      self.__class__.proc.wait()
+      self.logger.log("debugger stopped")
+      return
 
     # Find and store the current filename and byte offset at the
     # cursor location
@@ -577,27 +592,26 @@ class GodebugCommand(sublime_plugin.WindowCommand):
 
     filename = view.file_name()
 
+    self.__class__.proc = self.runner.run_nonblock("dlv", ["-log=true", "-headless=true", "/tmp/integrationprog"], stdin=None, stdout=PIPE, stderr=subprocess.STDOUT)
+    sublime.set_timeout_async(lambda: self.read_debugger_log(), 10)
+
+  def read_debugger_log(self):
+    self.logger.log("started reading debugger log")
+
     output_view = sublime.active_window().create_output_panel('gotools_debug_log')
     output_view.set_scratch(True)
     output_view.run_command("select_all")
     output_view.run_command("right_delete")
     sublime.active_window().run_command("show_panel", {"panel": "output.gotools_debug_log"})
 
-
-    p = self.runner.run_nonblock("dlv", ["-log=true", "/tmp/integrationprog"], stdin=None, stdout=PIPE, stderr=None)
-    sublime.set_timeout_async(lambda: self.read_debugger_log(p, output_view), 0)
-
-  def read_debugger_log(self, proc, output_view):
-    self.logger.log(">>> begin debugger log")
-
-    reason = "normally"
+    reason = "<eof>"
     try:
-      for line in proc.stdout:
+      for line in self.__class__.proc.stdout:
         output_view.run_command('append', {'characters': line})
     except Exception as err:
       reason = err
 
-    self.logger.log("<<< end debuger log (exited: "+ reason +")")
+    self.logger.log("finished reading debuger log (closed: "+ reason +")")
 
 class GoDebugBreakCommand(sublime_plugin.WindowCommand):
   def is_enabled(self):
