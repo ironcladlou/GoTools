@@ -578,16 +578,28 @@ class GotoolsDebugCommand(sublime_plugin.WindowCommand):
   def debugger_running(self):
     return GotoolsDebugCommand.Process or self.window.settings().has(GotoolsDebugCommand.PID_SETTING)
 
-  def run(self, stop=False):
+  def run(self, command=None):
     settings = GoToolsSettings()
     self.logger = Logger(settings)
     self.runner = ToolRunner(settings, self.logger)
 
-    if stop:
-      self.stop_debugger()
+    if not command:
+      self.logger.log("command is required")
       return
-
-    self.start_debugger()
+    
+    if command == "break":
+      self.add_break()
+    elif command == "clear":
+      self.clear_break()
+    elif command == "continue":
+      self.cont()
+      #sublime.set_timeout_async(lambda: self.cont(), 0)
+    elif command == "stop":
+      self.stop_debugger()
+    elif command == "start":
+      self.start_debugger()
+    else:
+      self.logger.log("unrecognized command: " + command)  
 
   def start_debugger(self):
     if self.debugger_running():
@@ -647,40 +659,32 @@ class GotoolsDebugCommand(sublime_plugin.WindowCommand):
 
     self.logger.log("finished reading debuger log (closed: "+ reason +")")
 
-class GotoolsDebugBreakCommand(sublime_plugin.WindowCommand):
-  Breakpoints = []
+  # TODO: the delve API should let us delete by criteria
+  def get_breakpoints(self):
+    conn = http.client.HTTPConnection(GotoolsDebugCommand.DEBUGGER_ADDR)
+    conn.request('GET', '/breakpoints', headers={'Accept': 'application/json'})
+    response = conn.getresponse()
+    response_str = response.read().decode()
+    conn.close()
 
-  def is_enabled(self):
-    return GoBuffers.is_go_source(self.window.active_view())
+    if response.status != 200:
+      self.logger.log("couldn't get breakpoints: " + response.reason + ":" + response_str)
+      return []
 
-  def run(self, command=None):
-    settings = GoToolsSettings()
-    self.logger = Logger(settings)
-
-    if not command:
-      self.logger.log("command is required")
-      return
-    
-    if command == "add":
-      self.add_break()
-    elif command == "clear":
-      self.clear_break()
-    elif command == "sync":
-      self.sync_breakpoints()
-    else:
-      self.logger.log("unrecognized command: " + command)  
+    return json.loads(response_str)
 
   def add_break(self):
     # Find and store the current filename and byte offset at the
     # cursor location
     view = self.window.active_view()
     row, col = view.rowcol(view.sel()[0].begin())
+    row = row + 1
     filename = view.file_name()
 
     conn = http.client.HTTPConnection(GotoolsDebugCommand.DEBUGGER_ADDR)
     headers = {'Content-type': 'application/json'}
 
-    bp_json = json.dumps({'File': filename, 'Line': row})
+    bp_json = json.dumps({'file': filename, 'line': row})
 
     conn.request('POST', '/breakpoints', bp_json, headers)
 
@@ -698,6 +702,7 @@ class GotoolsDebugBreakCommand(sublime_plugin.WindowCommand):
   def clear_break(self):
     view = self.window.active_view()
     row, col = view.rowcol(view.sel()[0].begin())
+    row = row + 1
     filename = view.file_name()
 
     bps = self.get_breakpoints()
@@ -725,20 +730,6 @@ class GotoolsDebugBreakCommand(sublime_plugin.WindowCommand):
 
     self.sync_breakpoints()
 
-  # TODO: the delve API should let us delete by criteria
-  def get_breakpoints(self):
-    conn = http.client.HTTPConnection(GotoolsDebugCommand.DEBUGGER_ADDR)
-    conn.request('GET', '/breakpoints', headers={'Accept': 'application/json'})
-    response = conn.getresponse()
-    response_str = response.read().decode()
-    conn.close()
-
-    if response.status != 200:
-      self.logger.log("couldn't get breakpoints: " + response.reason + ":" + response_str)
-      return []
-
-    return json.loads(response_str)
-
   def sync_breakpoints(self):
     bps = self.get_breakpoints()
     self.logger.log("found breakpoints: " + str(bps))
@@ -748,9 +739,65 @@ class GotoolsDebugBreakCommand(sublime_plugin.WindowCommand):
     marks = []
     for bp in bps:
       if bp['file'] == view.file_name():
-        line = bp['line']
+        line = bp['line'] - 1
         pt = view.text_point(line, 0)
         marks.append(sublime.Region(pt))
 
     if len(marks) > 0:
-      view.add_regions("breakpoint", marks, "mark", "circle", sublime.DRAW_STIPPLED_UNDERLINE | sublime.PERSISTENT)
+      view.add_regions("breakpoint", marks, "mark", "circle", sublime.PERSISTENT)
+
+  def cont(self):
+    conn = http.client.HTTPConnection(GotoolsDebugCommand.DEBUGGER_ADDR)
+    headers = {'Content-type': 'application/json'}
+    cmd_json = json.dumps({'Name': "continue"})
+
+    self.logger.log("continuing debugger")
+    conn.request('POST', '/command', cmd_json, headers)
+
+    response = conn.getresponse()
+    response_str = response.read().decode()
+    conn.close()
+
+    if response.status != 201:
+      self.logger.log("failed to continue: " + response.reason + ": " + response_str)
+      return
+    
+    self.logger.log("continue returned")
+    state = json.loads(response_str)
+
+    if not 'breakPoint' in state:
+      self.logger.log("no breakpoint hit; program probably finished")
+      return
+
+    filename = state['breakPoint']['file']
+    line = state['breakPoint']['line']
+    self.logger.log("jumping to breakpoint at " + filename + ":" + str(line))
+
+    view = self.window.active_view()
+    if view.file_name() != filename:
+      view = self.window.open_file(filename)
+
+    sublime.set_timeout(lambda: self.show_location(view, line), 0)
+
+  def show_location(self, view, row, retries=0):
+    if not view.is_loading():
+      pt = view.text_point(row-1, 0)
+
+      view.sel().clear()
+      view.sel().add(sublime.Region(pt))
+      view.show_at_center(pt)
+
+      view.erase_regions("continue")
+      marks = [sublime.Region(pt)]
+      view.add_regions("continue", marks, "mark", "bookmark", sublime.PERSISTENT)
+    else:
+      if retries < 10:
+        self.logger.status('waiting for ' + view.file_name() + ' to load...')
+        sublime.set_timeout(lambda: self.show_location(view, row, retries+1), 10)
+        return
+      else:
+        self.logger.status("jump to location failed; please check console log for details")
+        self.logger.error("timed out waiting for file load - giving up")
+        return
+
+    
