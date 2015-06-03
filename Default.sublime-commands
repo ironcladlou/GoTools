@@ -1,0 +1,31 @@
+[
+  {
+    "caption": "GoTools: Go to definition",
+    "command": "godef"
+  },
+  {
+    "caption": "GoTools: Format",
+    "command": "gofmt"
+  },
+  {
+    "caption": "GoTools: Oracle: Callers",
+    "command": "gooracle",
+    "args": {
+      "command": "callers"
+    }
+  },
+  {
+    "caption": "GoTools: Oracle: Callees",
+    "command": "gooracle",
+    "args": {
+      "command": "callees"
+    }
+  },
+  {
+    "caption": "GoTools: Oracle: Implements",
+    "command": "gooracle",
+    "args": {
+      "command": "implements"
+    }
+  }
+]

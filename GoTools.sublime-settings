@@ -1,6 +1,7 @@
 {
   // The GOPATH used for plugin operations. May be overridden and used as a
-  // substitution value in the gopath project setting. Defaults to $GOPATH.
+  // substitution value in the gopath project setting. Defaults to the GOPATH
+  // environment variable if left blank or undefined.
   // "gopath": "",
 
   // Enable gofmt formatting after a file is saved.
@@ -8,6 +9,9 @@
 
   // Instead of `gofmt`, use another command (e.g. goimports).
   "gofmt_cmd": "gofmt",
+
+  // Godef command backend (either 'godef' or 'oracle')
+  "godef_backend": "oracle",
 
   // Enable gocode autocompletion support.
   "gocode_enabled": true,
