@@ -6,130 +6,103 @@ GoTools is a a [Sublime Text 3](http://www.sublimetext.com) plugin inspired by [
 
 ## Features
 
-* Jump to symbol/declaration with [godef](http://godoc.org/code.google.com/p/rog-go/exp/cmd/godef).
-* Format and syntax check on save with [gofmt](https://golang.org/cmd/gofmt/).
-* Autocompletion support using [gocode](https://github.com/nsf/gocode).
-* Build and test integration.
-* Improved syntax support (borrowed from [GoSublime](https://github.com/DisposaBoy/GoSublime)).
+* Jump to symbol/declaration (using your choice of [oracle](https://godoc.org/golang.org/x/tools/oracle) or [godef](https://github.com/rogpeppe/godef))
+* Format and syntax check on save, including gutter marks (using [gofmt](https://golang.org/cmd/gofmt/))
+* Autocompletion (using [gocode](https://github.com/nsf/gocode))
+* Build and test integration
+* Source analysis (using [oracle](https://godoc.org/golang.org/x/tools/oracle))
+* Improved syntax support (borrowed from [GoSublime](https://github.com/DisposaBoy/GoSublime))
 
-## Installation
+### Prerequisites
 
-#### Prerequisites
+GoTools will attempt to find `oracle`, `gofmt`, and `gocode` using GOPATH and GOROOT as resolved according to your GoTools settings. If you don't have these binaries, use `go get` to install them, e.g.:
 
-GoTools will attempt to find `godef`, `gofmt`, and `gocode` using GOPATH and GOROOT as resolved according to your GoTools settings. If you don't have these binaries, use `go get` to install them, e.g.:
+    go get -u -v golang.org/x/tools/cmd/oracle
+    go get -u -v github.com/nsf/gocode
 
-    go get -v code.google.com/p/rog-go/exp/cmd/godef
-    go get -v github.com/nsf/gocode
+GoTools is only tested with Go 1.4.
 
-#### Install on OSX
+### Installing
 
-    git clone git@github.com:ironcladlou/GoTools.git ~/Library/Application\ Support/Sublime\ Text\ 3/Packages/GoTools
+To install on Linux:
 
-#### Install on Linux
+`git clone git@github.com:ironcladlou/GoTools.git ~/.config/sublime-text-3/Packages/GoTools`
 
-    git clone git@github.com:ironcladlou/GoTools.git ~/.config/sublime-text-3/Packages/GoTools
+To install on OSX:
 
-## Getting Started
+`git clone git@github.com:ironcladlou/GoTools.git ~/Library/Application\ Support/Sublime\ Text\ 3/Packages/GoTools`
 
-Create a GoTools settings file through the Sublime Text preferences menu using `Package Settings -> GoTools -> Settings -> User`. A an example settings file is provided by `Package Settings -> GoTools -> Settings - Default`.
+### Configure GoTools
 
-```
-{
-  // The GOPATH used for plugin operations. May be overridden and used as a
-  // substitution value in the gopath project setting. Defaults to $GOPATH.
-  "gopath": "",
+Create a GoTools settings file through the Sublime Text preferences menu at `Package Settings -> GoTools -> Settings -> User`.
 
-  // Enable gofmt formatting after a file is saved.
-  "gofmt_enabled": true,
+[Default settings](GoTools.sublime-settings) are provided and can be accessed through the Sublime Text preferences menu at `Package Settings -> GoTools -> Settings - Default`. Each option is documented in the settings file itself.
 
-  // Instead of `gofmt`, use another command (e.g. goimports).
-  "gofmt_cmd": "gofmt",
+### Configure Your Project
 
-  // Enable gocode autocompletion support.
-  "gocode_enabled": true,
+Create a `GoTools` settings key in a Sublime Text `.sublime-project` file (through the menu at `Project -> Edit Project`).
 
-  // Enable GoTools console debug output.
-  "debug_enabled": false
-}
-
-```
-
-Create a GoTools settings key in a Sublime Text `.sublime-project` file (using the `Project -> Edit Project` menu).
-
-Here's an example `.sublime-project` which uses a `GOPATH` override and integrates with the GoTools build system:
-
-```
-{
-  "folders": [],
-  "settings": {
-    "GoTools": {
-      // A custom GOPATH for this project; ${gopath} is replaced by the global value.
-      "gopath": "${gopath}/src/github.com/some/project/Godeps/_workspace:${gopath}",
-
-      // The root package (or namespace) of a project.
-      "project_package": "github.com/some/project",
-
-      // A list of sub-packages relative to project_packages to be included in builds.
-      "build_packages": ["cmd/myprogram"],
-
-      // A list of sub-packages relative to project_package to be included in test
-      // discovery.
-      "test_packages": ["cmd", "lib", "examples"],
-
-      // A list of sub-packages relative to project_packages to be identified as tagged
-      // tests during test discovery.
-      "tagged_test_packages": ["test/integration"],
-
-      // The tags to apply to `go test` when running tagged tests.
-      "tagged_test_tags": ["integration"],
-
-      // If true, runs `go test -v` for verbose output.
-      "verbose_tests": true,
-
-      // If set to a Go time string, test timeouts are set via the `-timeout` flag.
-      // "test_timeout": "10s"
-    }
-  }
-}
-```
+A documented [example project file](ExampleProject.sublime-project) is provided.
 
 ## Using GoTools
 
-### Go to definition
+Most GoTools commands are available via the Sublime Text command palette. Open the palette when viewing a Go source file and search for "GoTools" to see what's available.
 
-GoTools provides a `godef` Sublime Text command which can be bound to keys or called by other plugins.
+Many of the build commands are also available via the context menu.
 
-Here's an example key binding:
+#### Go to Definition
 
-    { "keys" : ["ctrl+.", "g"], "command": "godef" }
+GoTools provides a `godef` Sublime Text command which can be bound to keys or called by other plugins. It will open the definition at the symbol under the caret in a new tab.
 
-Now pressing `<ctrl> . g` with the cursor on a symbol will jump the cursor to its definition in a new tab.
+Here's an example `sublime-keymap` entry which executes `godef` when `<ctrl>+g` is pressed:
 
-### Autocompletion
+```json
+{"keys": ["ctrl+.", "g"], "command": "godef"}
+```
 
-Autocompletion is provided by Sublime Text's built-in suggestion engine, and is backed by `gocode`. Here's an example key binding:
+Here's an example `sublime-mousemap` entry which executes `godef` when `<ctrl>+<left mouse>` is pressed:
 
-    { "keys": ["ctrl+space"], "command": "auto_complete" }
+```json
+{"button": "button1", "count": 1, "modifiers": ["ctrl"], "command": "godef"}
+```
+
+#### Autocomplete
+
+Autocompletion is backed by `gocode` and integrated with Sublime Text's built-in suggestion engine.
+
+Here's an example key binding which autocompletes when `<ctrl>+<space>` is pressed:
+
+```json
+{"keys": ["ctrl+space"], "command": "auto_complete"}
+```
 
 When `gocode` has suggestions, a specially formatted suggestion list will appear, including type information for each suggestion.
 
-### Go builds
+#### Go Builds
 
-Build support is provided through the Sublime Text build system and is backed by `go build`.
+Build support is backed by `go build` and integrates with the Sublime Text build system.
 
-Activate the GoTools build system from the Sublime Text menu by selecting it from `Tools -> Build System`. If the build system is set to `Automatic`, GoTools will be automatically selected when editing files matching `*.go`
+Activate the GoTools build system from the Sublime Text menu by selecting it from `Tools -> Build System`. If the build system is set to `Automatic`, GoTools will be automatically used for builds when editing Go source files.
 
-There are many ways to perform a build:
+There are several ways to perform a build:
  
   * From the Sublime Text menu at `Tools -> Build`
-  * A hotkey bound to the `build` command
+  * A key bound to the `build` command
   * The command palette, as `Build: Build`
 
-A `Clean Build` variant is also provided which recursively deletes all `GOPATH/pkg` directory contents prior to executing the build as usual.
+A `Clean Build` command variant is also provided which recursively deletes all `GOPATH/pkg` directory contents prior to executing the build as usual.
 
-### Go tests
+Build results are placed in the built-in Sublime Text build output panel which can be toggled with a command such as:
 
-Test support is provided as build variants via the GoTools build system, and is backed by `go test`. GoTools attempts to "do what you mean" depending on context. For instance, when using `Run Test at Cursor` in test file which requires an `integration` Go build tag, GoTools will notice this and automatically add `-tags integration` to the test execution.
+```json
+{ "keys" : ["ctrl+m"], "command" : "show_panel" , "args" : {"panel": "output.exec", "toggle": true}},
+```
+
+#### Go Tests
+
+Test support is backed by `go test` and is integrated with the Sublime Text build system. 
+
+GoTools attempts to "do what you mean" depending on context. For instance, when using `Run Test at Cursor` in a test file which requires an `integration` Go build tag, GoTools will notice this and automatically add `-tags integration` to the test execution.
 
 The following GoTools build variants are available:
 
@@ -139,7 +112,31 @@ The following GoTools build variants are available:
   * `Run Tagged Tests` is like `Run Tests` but for the packages specified in the `tagged_packages` setting.
   * `Run Last Test` re-runs the last test variant that was executed.
 
-## Notes
+Test results are placed in the built-in Sublime Text build output panel which can be toggled with a command such as:
+
+```json
+{ "keys" : ["ctrl+m"], "command" : "show_panel" , "args" : {"panel": "output.exec", "toggle": true}},
+```
+
+#### Oracle Analysis (experimental)
+
+Source code analysis is backed by `oracle`. The following oracle commands are supported:
+
+* Callers
+* Callees
+* Implements
+
+See the [Default.sublime-commands](Default.sublime-commands) file for the Sublime Text commands which can be mapped to keys.
+
+**IMPORTANT**: Many of the oracle commands can be extremely slow for large projects. The status bar will indicate when a command is in progress. Check the Sublime Text console logs for detailed output and troubleshooting.
+
+Oracle results are placed in a Sublime Text output panel which can be toggled with a command such as:
+
+```json
+{ "keys" : ["ctrl+m"], "command" : "show_panel" , "args" : {"panel": "output.gotools_oracle", "toggle": true}},
+```
+
+### Notes
 
 #### Gocode support considerations
 

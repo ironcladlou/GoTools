@@ -67,6 +67,7 @@ class GoToolsSettings():
     self.gofmt_enabled = settings.get("gofmt_enabled")
     self.gofmt_cmd = settings.get("gofmt_cmd")
     self.gocode_enabled = settings.get("gocode_enabled")
+    self.godef_backend = settings.get("godef_backend")
 
     # Project feature settings.
     self.project_package = settings.get("project_package")
@@ -102,6 +103,11 @@ class Buffers():
     row, col = view.rowcol(view.sel()[0].begin())
     return view.text_point(row, col)
 
+  @staticmethod
+  def location_at_cursor(view):
+    row, col = view.rowcol(view.sel()[0].begin())
+    return (view.file_name(), row, col, Buffers.offset_at_cursor(view))
+
 class GoBuffers():
   @staticmethod
   def func_name_at_cursor(view):
@@ -127,7 +133,7 @@ class ToolRunner():
     self.settings = settings
     self.logger = logger
 
-  def run(self, tool, args=[], stdin=None):
+  def run(self, tool, args=[], stdin=None, timeout=5):
     toolpath = None
     searchpaths = list(map(lambda x: os.path.join(x, 'bin'), self.settings.gopath.split(':')))
     searchpaths.append(os.path.join(self.settings.goroot, 'bin'))
@@ -145,16 +151,22 @@ class ToolRunner():
     cmd = [toolpath] + args
     try:
       self.logger.log("spawning process:")
-      self.logger.log("-> GOPATH=" + self.settings.gopath)
-      self.logger.log("-> " + ' '.join(cmd))
+      self.logger.log("GOPATH=" + self.settings.gopath)
+      self.logger.log(' '.join(cmd))
 
       env = os.environ.copy()
       env["GOPATH"] = self.settings.gopath
     
+      start = time.time()
       p = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE, env=env)
-      stdout, stderr = p.communicate(input=stdin, timeout=5)
-      p.wait(timeout=5)
-      return stdout.decode("utf-8"), stderr.decode("utf-8"), p.returncode
+      stdout, stderr = p.communicate(input=stdin, timeout=timeout)
+      p.wait(timeout=timeout)
+      elapsed = round(time.time() - start)
+      self.logger.log("process returned ("+ str(p.returncode) +") in " + str(elapsed) + " seconds")
+      stderr = stderr.decode("utf-8")
+      if len(stderr) > 0:
+        self.logger.log("stderr:\n"+stderr)
+      return stdout.decode("utf-8"), stderr, p.returncode
     except subprocess.CalledProcessError as e:
       raise
 
@@ -163,37 +175,31 @@ class GodefCommand(sublime_plugin.WindowCommand):
     return GoBuffers.is_go_source(self.window.active_view())
 
   def run(self):
-    settings = GoToolsSettings()
-    self.logger = Logger(settings)
-    self.runner = ToolRunner(settings, self.logger)
+    self.settings = GoToolsSettings()
+    self.logger = Logger(self.settings)
+    self.runner = ToolRunner(self.settings, self.logger)
+    view = self.window.active_view()
+    sublime.set_timeout_async(lambda: self.godef(view), 0)
 
+  def godef(self, view):
     # Find and store the current filename and byte offset at the
     # cursor location
-    view = self.window.active_view()
-    row, col = view.rowcol(view.sel()[0].begin())
+    filename, row, col, offset = Buffers.location_at_cursor(view)
 
-    self.offset = Buffers.offset_at_cursor(view)
-    self.filename = view.file_name()
-
-    location, err, rc = self.runner.run("godef", ["-f", self.filename, "-o", str(self.offset)])
-    self.logger.log("godef output: " + location.rstrip())
+    backend = self.settings.godef_backend if self.settings.godef_backend else ""
+    try:
+      if backend == "oracle":
+        file, row, col = self.get_oracle_location(filename, offset)
+      elif backend == "godef":
+        file, row, col = self.get_godef_location(filename, offset)
+      else:
+        self.logger.log("Invalid godef backend '" + backend + "' (supported: godef, oracle)")
+        self.logger.status("Invalid godef configuration; see console log for details")
+        return
+    except Exception as e:
+     self.logger.status(str(e))
+     return
     
-    if rc != 0:
-      self.logger.status("no definition found")
-      return
-
-    # godef is sometimes returning this junk as part of the output,
-    # so just cut anything prior to the first path separator
-    location = location.rstrip()[location.find('/'):].split(":")
-
-    if len(location) != 3:
-      self.logger.status("no definition found")
-      return
-
-    file = location[0]
-    row = int(location[1])
-    col = int(location[2])
-
     if not os.path.isfile(file):
       self.logger.log("WARN: file indicated by godef not found: " + file)
       self.logger.status("godef failed: Please enable debugging and check console log")
@@ -205,7 +211,47 @@ class GodefCommand(sublime_plugin.WindowCommand):
     else:
       self.logger.log("opening definition at " + file + ":" + str(row) + ":" + str(col))
       godef_view = self.window.open_file(file)
-      sublime.set_timeout(lambda: self.show_location(godef_view, row, col), 10)
+      self.show_location(godef_view, row, col)
+
+  def get_oracle_location(self, filename, offset):
+    location, err, rc = self.runner.run("oracle", ["-pos="+filename+":#"+str(offset), "-format=json", "definition"])
+    if rc != 0:
+      raise Exception("no definition found")
+
+    self.logger.log("oracle output:\n" + location.rstrip())
+
+    # godef is sometimes returning this junk as part of the output,
+    # so just cut anything prior to the first path separator
+    location = json.loads(location.rstrip())['definition']['objpos'].split(":")
+
+    if len(location) != 3:
+      raise Exception("no definition found")
+
+    file = location[0]
+    row = int(location[1])
+    col = int(location[2])
+
+    return [file, row, col]
+
+  def get_godef_location(self, filename, offset):
+    location, err, rc = self.runner.run("godef", ["-f", filename, "-o", str(offset)])
+    if rc != 0:
+      raise Exception("no definition found")
+
+    self.logger.log("godef output:\n" + location.rstrip())
+
+    # godef is sometimes returning this junk as part of the output,
+    # so just cut anything prior to the first path separator
+    location = location.rstrip()[location.find('/'):].split(":")
+
+    if len(location) != 3:
+      raise Exception("no definition found")
+
+    file = location[0]
+    row = int(location[1])
+    col = int(location[2])
+
+    return [file, row, col]
 
   def show_location(self, view, row, col, retries=0):
     if not view.is_loading():
@@ -543,3 +589,55 @@ class GobuildCommand(sublime_plugin.WindowCommand):
           found_tags.append(tag)
     
     return found_tags
+
+
+class GooracleCommand(sublime_plugin.WindowCommand):
+  def is_enabled(self):
+    return GoBuffers.is_go_source(self.window.active_view())
+
+  def run(self, command=None):
+    self.settings = GoToolsSettings()
+    self.logger = Logger(self.settings)
+    self.runner = ToolRunner(self.settings, self.logger)
+
+    if not command:
+      self.logger.log("command is required")
+      return
+
+    view = self.window.active_view()
+    filename, row, col, offset = Buffers.location_at_cursor(view)
+    pos = filename+":#"+str(offset)
+
+    build_packages = []
+    for p in self.settings.build_packages:
+      build_packages.append(os.path.join(self.settings.project_package, p))
+
+    sublime.active_window().run_command("hide_panel", {"panel": "output.gotools_oracle"})
+
+    if command == "callees":
+      sublime.set_timeout_async(lambda: self.do_plain_oracle("callees", pos, build_packages), 0)
+    if command == "callers":
+      sublime.set_timeout_async(lambda: self.do_plain_oracle("callers", pos, build_packages), 0)
+    if command == "implements":
+      sublime.set_timeout_async(lambda: self.do_plain_oracle("implements", pos), 0)
+
+  def do_plain_oracle(self, mode, pos, build_packages=[], regex="^(.*):(\d+):(\d+):(.*)$"):
+    self.logger.status("running oracle "+mode+"...")
+    args = ["-pos="+pos, "-format=plain", mode]
+    if len(build_packages) > 0:
+      args = args + build_packages
+    output, err, rc = self.runner.run("oracle", args, timeout=60)
+    self.logger.log("oracle "+mode+" output: " + output.rstrip())
+
+    if rc != 0:
+      self.logger.status("oracle call failed (" + str(rc) +")")
+      return
+    self.logger.status("oracle "+mode+" finished")
+
+    panel = sublime.active_window().create_output_panel('gotools_oracle')
+    panel.set_scratch(True)
+    panel.settings().set("result_file_regex", regex)
+    panel.run_command("select_all")
+    panel.run_command("right_delete")
+    panel.run_command('append', {'characters': output})
+    sublime.active_window().run_command("show_panel", {"panel": "output.gotools_oracle"})

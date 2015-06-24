@@ -1,0 +1,34 @@
+{
+  "folders": [],
+  "settings": {
+    "GoTools": {
+      // A custom GOPATH for this project; ${gopath} is expanded by the global
+      // settings value.
+      "gopath": "${gopath}/src/github.com/some/project/Godeps/_workspace:${gopath}",
+
+      // The root package (or namespace) of a project.
+      "project_package": "github.com/some/project",
+
+      // A list of sub-packages relative to project_packages to be included in
+      // builds.
+      "build_packages": ["cmd/myprogram"],
+
+      // A list of sub-packages relative to project_package to be included in
+      // test discovery.
+      "test_packages": ["cmd", "lib", "examples"],
+
+      // A list of sub-packages relative to project_packages to be identified
+      // as tagged tests during test discovery.
+      "tagged_test_packages": ["test/integration"],
+
+      // The tags to apply to `go test` when running tagged tests.
+      "tagged_test_tags": ["integration"],
+
+      // Runs `go test -v` for verbose output.
+      "verbose_tests": true,
+
+      // A go time string; test timeouts are set via the `-timeout` flag.
+      "test_timeout": "10s"
+    }
+  }
+}
