@@ -218,7 +218,23 @@ class GodefCommand(sublime_plugin.WindowCommand):
       self.show_location(godef_view, row, col)
 
   def get_oracle_location(self, filename, offset):
-    location, err, rc = self.runner.run("oracle", ["-pos="+filename+":#"+str(offset), "-format=json", "definition"])
+    args = ["-pos="+filename+":#"+str(offset), "-format=json", "definition"]
+
+    # Build up a package scope contaning all packages the user might have
+    # configured.
+    # TODO: put into a utility
+    package_scope = []
+    for p in self.settings.build_packages:
+      package_scope.append(os.path.join(self.settings.project_package, p))
+    for p in self.settings.test_packages:
+      package_scope.append(os.path.join(self.settings.project_package, p))
+    for p in self.settings.tagged_test_packages:
+      package_scope.append(os.path.join(self.settings.project_package, p))
+
+    if len(package_scope) > 0:
+      args = args + package_scope
+
+    location, err, rc = self.runner.run("oracle", args)
     if rc != 0:
       raise Exception("no definition found")
 
@@ -612,35 +628,42 @@ class GooracleCommand(sublime_plugin.WindowCommand):
     filename, row, col, offset, offset_end = Buffers.location_at_cursor(view)
     pos = filename+":#"+str(offset)
 
-    build_packages = []
+    # Build up a package scope contaning all packages the user might have
+    # configured.
+    # TODO: put into a utility
+    package_scope = []
     for p in self.settings.build_packages:
-      build_packages.append(os.path.join(self.settings.project_package, p))
+      package_scope.append(os.path.join(self.settings.project_package, p))
+    for p in self.settings.test_packages:
+      package_scope.append(os.path.join(self.settings.project_package, p))
+    for p in self.settings.tagged_test_packages:
+      package_scope.append(os.path.join(self.settings.project_package, p))
 
     sublime.active_window().run_command("hide_panel", {"panel": "output.gotools_oracle"})
 
     if command == "callees":
-      sublime.set_timeout_async(lambda: self.do_plain_oracle("callees", pos, build_packages), 0)
+      sublime.set_timeout_async(lambda: self.do_plain_oracle("callees", pos, package_scope), 0)
     if command == "callers":
-      sublime.set_timeout_async(lambda: self.do_plain_oracle("callers", pos, build_packages), 0)
+      sublime.set_timeout_async(lambda: self.do_plain_oracle("callers", pos, package_scope), 0)
     if command == "callstack":
-      sublime.set_timeout_async(lambda: self.do_plain_oracle("callstack", pos, build_packages), 0)
+      sublime.set_timeout_async(lambda: self.do_plain_oracle("callstack", pos, package_scope), 0)
     if command == "describe":
-      sublime.set_timeout_async(lambda: self.do_plain_oracle("describe", pos, build_packages), 0)
+      sublime.set_timeout_async(lambda: self.do_plain_oracle("describe", pos, package_scope), 0)
     if command == "freevars":
       pos = filename+":#"+str(offset)+","+"#"+str(offset_end)
-      sublime.set_timeout_async(lambda: self.do_plain_oracle("freevars", pos, build_packages), 0)
+      sublime.set_timeout_async(lambda: self.do_plain_oracle("freevars", pos, package_scope), 0)
     if command == "implements":
       sublime.set_timeout_async(lambda: self.do_plain_oracle("implements", pos), 0)
     if command == "peers":
-      sublime.set_timeout_async(lambda: self.do_plain_oracle("peers", pos, build_packages), 0)
+      sublime.set_timeout_async(lambda: self.do_plain_oracle("peers", pos, package_scope), 0)
     if command == "referrers":
-      sublime.set_timeout_async(lambda: self.do_plain_oracle("referrers", pos, build_packages), 0)
+      sublime.set_timeout_async(lambda: self.do_plain_oracle("referrers", pos, package_scope), 0)
 
-  def do_plain_oracle(self, mode, pos, build_packages=[], regex="^(.*):(\d+):(\d+):(.*)$"):
+  def do_plain_oracle(self, mode, pos, package_scope=[], regex="^(.*):(\d+):(\d+):(.*)$"):
     self.logger.status("running oracle "+mode+"...")
     args = ["-pos="+pos, "-format=plain", mode]
-    if len(build_packages) > 0:
-      args = args + build_packages
+    if len(package_scope) > 0:
+      args = args + package_scope
     output, err, rc = self.runner.run("oracle", args, timeout=60)
     self.logger.log("oracle "+mode+" output: " + output.rstrip())
 
