@@ -22,10 +22,45 @@
     }
   },
   {
+    "caption": "GoTools: Oracle: Callstack",
+    "command": "gooracle",
+    "args": {
+      "command": "callstack"
+    }
+  },
+  {
+    "caption": "GoTools: Oracle: Describe",
+    "command": "gooracle",
+    "args": {
+      "command": "describe"
+    }
+  },
+  {
+    "caption": "GoTools: Oracle: Freevars",
+    "command": "gooracle",
+    "args": {
+      "command": "freevars"
+    }
+  },
+  {
     "caption": "GoTools: Oracle: Implements",
     "command": "gooracle",
     "args": {
       "command": "implements"
+    }
+  },
+  {
+    "caption": "GoTools: Oracle: Peers",
+    "command": "gooracle",
+    "args": {
+      "command": "peers"
+    }
+  },
+  {
+    "caption": "GoTools: Oracle: Referrers",
+    "command": "gooracle",
+    "args": {
+      "command": "referrers"
     }
   }
 ]

@@ -100,13 +100,16 @@ class Buffers():
 
   @staticmethod
   def offset_at_cursor(view):
-    row, col = view.rowcol(view.sel()[0].begin())
-    return view.text_point(row, col)
+    begin_row, begin_col = view.rowcol(view.sel()[0].begin())
+    end_row, end_col = view.rowcol(view.sel()[0].end())
+
+    return (view.text_point(begin_row, begin_col), view.text_point(end_row, end_col))
 
   @staticmethod
   def location_at_cursor(view):
     row, col = view.rowcol(view.sel()[0].begin())
-    return (view.file_name(), row, col, Buffers.offset_at_cursor(view))
+    offsets = Buffers.offset_at_cursor(view)
+    return (view.file_name(), row, col, offsets[0], offsets[1])
 
 class GoBuffers():
   @staticmethod
@@ -115,7 +118,7 @@ class GoBuffers():
 
     func_name = ""
     for r in func_regions:
-      if r.contains(Buffers.offset_at_cursor(view)):
+      if r.contains(Buffers.offset_at_cursor(view)[0]):
         lines = view.substr(r).splitlines()
         match = re.match('func.*(Test.+)\(', lines[0])
         if match and match.group(1):
@@ -185,7 +188,7 @@ class GodefCommand(sublime_plugin.WindowCommand):
   def godef(self, view):
     # Find and store the current filename and byte offset at the
     # cursor location
-    filename, row, col, offset = Buffers.location_at_cursor(view)
+    filename, row, col, offset, offset_end = Buffers.location_at_cursor(view)
 
     backend = self.settings.godef_backend if self.settings.godef_backend else ""
     try:
@@ -367,7 +370,7 @@ class GocodeSuggestions(sublime_plugin.EventListener):
     _, _, rc = runner.run("gocode", ["set", "lib-path", GocodeSuggestions.gocode_libpath(settings)])
 
     suggestionsJsonStr, stderr, rc = runner.run("gocode", ["-f=json", "autocomplete", 
-      str(Buffers.offset_at_cursor(view))], stdin=Buffers.buffer_text(view))
+      str(Buffers.offset_at_cursor(view)[0])], stdin=Buffers.buffer_text(view))
 
     # TODO: restore gocode's lib-path
 
@@ -606,7 +609,7 @@ class GooracleCommand(sublime_plugin.WindowCommand):
       return
 
     view = self.window.active_view()
-    filename, row, col, offset = Buffers.location_at_cursor(view)
+    filename, row, col, offset, offset_end = Buffers.location_at_cursor(view)
     pos = filename+":#"+str(offset)
 
     build_packages = []
@@ -619,8 +622,19 @@ class GooracleCommand(sublime_plugin.WindowCommand):
       sublime.set_timeout_async(lambda: self.do_plain_oracle("callees", pos, build_packages), 0)
     if command == "callers":
       sublime.set_timeout_async(lambda: self.do_plain_oracle("callers", pos, build_packages), 0)
+    if command == "callstack":
+      sublime.set_timeout_async(lambda: self.do_plain_oracle("callstack", pos, build_packages), 0)
+    if command == "describe":
+      sublime.set_timeout_async(lambda: self.do_plain_oracle("describe", pos, build_packages), 0)
+    if command == "freevars":
+      pos = filename+":#"+str(offset)+","+"#"+str(offset_end)
+      sublime.set_timeout_async(lambda: self.do_plain_oracle("freevars", pos, build_packages), 0)
     if command == "implements":
       sublime.set_timeout_async(lambda: self.do_plain_oracle("implements", pos), 0)
+    if command == "peers":
+      sublime.set_timeout_async(lambda: self.do_plain_oracle("peers", pos, build_packages), 0)
+    if command == "referrers":
+      sublime.set_timeout_async(lambda: self.do_plain_oracle("referrers", pos, build_packages), 0)
 
   def do_plain_oracle(self, mode, pos, build_packages=[], regex="^(.*):(\d+):(\d+):(.*)$"):
     self.logger.status("running oracle "+mode+"...")
