@@ -124,11 +124,16 @@ Source code analysis is backed by `oracle`. The following oracle commands are su
 
 * Callers
 * Callees
+* Callstack
+* Describe
+* Freevars (requires a selection)
 * Implements
+* Peers
+* Referrers
+
+Use the Sublime Text command palette to run each command (try filtering with "oracle").
 
 See the [Default.sublime-commands](Default.sublime-commands) file for the Sublime Text commands which can be mapped to keys.
-
-**IMPORTANT**: Many of the oracle commands can be extremely slow for large projects. The status bar will indicate when a command is in progress. Check the Sublime Text console logs for detailed output and troubleshooting.
 
 Oracle results are placed in a Sublime Text output panel which can be toggled with a command such as:
 
@@ -136,9 +141,9 @@ Oracle results are placed in a Sublime Text output panel which can be toggled wi
 { "keys" : ["ctrl+m"], "command" : "show_panel" , "args" : {"panel": "output.gotools_oracle", "toggle": true}},
 ```
 
-### Notes
+**NOTE**: Many of the oracle commands can be extremely slow for large projects. The status bar will indicate when a command is in progress. Check the Sublime Text console logs for detailed output and troubleshooting.
 
-#### Gocode support considerations
+### Gocode Caveats
 
 **Important**: Using gocode support will modify the `lib-path` setting in the gocode daemon. The change will affect all clients, including other Sublime Text sessions, Vim instances, etc. Don't use this setting if you're concerned about interoperability with other tools which integrate with gocode.
 
@@ -148,6 +153,6 @@ With such a project, to get the best suggestions from gocode, it's necessary to 
 
 GoTools will infer the correct gocode `lib-path` by constructing a path which incorporates all project `GOPATH` entries.
 
-#### Using with GoSublime
+### GoSublime Caveats
 
 Installing GoTools alongside GoSublime isn't tested or supported, so YMMV.
