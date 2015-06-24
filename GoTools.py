@@ -146,7 +146,8 @@ class ToolRunner():
         break
 
     if not toolpath:
-      raise Exception("Couldn't find Go tool " + tool + " in: \n" + "\n".join(searchpaths))
+      self.logger.log("Couldn't find Go tool '" + tool + "' in:\n" + "\n".join(searchpaths))
+      raise Exception("Error running Go tool '" + tool + "'; check the console logs for details")
 
     cmd = [toolpath] + args
     try:
