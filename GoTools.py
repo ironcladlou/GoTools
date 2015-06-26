@@ -67,9 +67,9 @@ class GoToolsSettings():
 
     # Plugin feature settings.
     self.debug_enabled = settings.get("debug_enabled")
-    self.gofmt_enabled = settings.get("format_on_save")
+    self.format_on_save = settings.get("format_on_save")
     self.format_backend = settings.get("format_backend")
-    self.gocode_enabled = settings.get("autocomplete")
+    self.autocomplete = settings.get("autocomplete")
     self.goto_def_backend = settings.get("goto_def_backend")
 
     # Project feature settings.
@@ -296,7 +296,7 @@ class GotoolsFormatOnSave(sublime_plugin.EventListener):
     if not GoBuffers.is_go_source(view): return
 
     settings = GoToolsSettings()
-    if not settings.gofmt_enabled:
+    if not settings.format_on_save:
       return
 
     view.run_command('gotools_format')
@@ -388,7 +388,7 @@ class GotoolsSuggestions(sublime_plugin.EventListener):
     logger = Logger(settings)
     runner = ToolRunner(settings, logger)
 
-    if not settings.gocode_enabled: return
+    if not settings.autocomplete: return
 
     # set the lib-path for gocode's lookups
     _, _, rc = runner.run("gocode", ["set", "lib-path", GotoolsSuggestions.gocode_libpath(settings)])
