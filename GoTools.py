@@ -68,9 +68,9 @@ class GoToolsSettings():
     # Plugin feature settings.
     self.debug_enabled = settings.get("debug_enabled")
     self.gofmt_enabled = settings.get("format_on_save")
-    self.gofmt_cmd = settings.get("format_backend")
+    self.format_backend = settings.get("format_backend")
     self.gocode_enabled = settings.get("autocomplete")
-    self.godef_backend = settings.get("goto_def_backend")
+    self.goto_def_backend = settings.get("goto_def_backend")
 
     # Project feature settings.
     self.project_package = settings.get("project_package")
@@ -193,7 +193,7 @@ class GotoolsGotoDef(sublime_plugin.WindowCommand):
     # cursor location
     filename, row, col, offset, offset_end = Buffers.location_at_cursor(view)
 
-    backend = self.settings.godef_backend if self.settings.godef_backend else ""
+    backend = self.settings.goto_def_backend if self.settings.goto_def_backend else ""
     try:
       if backend == "oracle":
         file, row, col = self.get_oracle_location(filename, offset)
@@ -311,11 +311,11 @@ class GotoolsFormat(sublime_plugin.TextCommand):
     self.runner = ToolRunner(self.settings, self.logger)
 
     args = []
-    if self.settings.gofmt_cmd == "gofmt":
+    if self.settings.format_backend == "gofmt":
       args = ["-e", "-s"]
-    elif self.settings.gofmt_cmd == "goimports":
+    elif self.settings.format_backend == "goimports":
       args = ["-e"]
-    stdout, stderr, rc = self.runner.run(self.settings.gofmt_cmd, args, stdin=Buffers.buffer_text(self.view))
+    stdout, stderr, rc = self.runner.run(self.settings.format_backend, args, stdin=Buffers.buffer_text(self.view))
 
     # Clear previous syntax error marks
     self.view.erase_regions("mark")
