@@ -69,6 +69,14 @@ class GoToolsSettings():
     self.debug_enabled = settings.get("debug_enabled")
     self.gofmt_enabled = settings.get("format_on_save")
     self.gofmt_cmd = settings.get("format_backend")
+
+    if self.gofmt_cmd == "gofmt":
+      self.gofmt_args = ["-e", "-s"]
+    elif self.gofmt_cmd == "goimports":
+      self.gofmt_args = ["-e"]
+    else:
+      self.gofmt_args = []
+
     self.gocode_enabled = settings.get("autocomplete")
     self.godef_backend = settings.get("goto_def_backend")
 
@@ -310,7 +318,7 @@ class GotoolsFormat(sublime_plugin.TextCommand):
     self.logger = Logger(self.settings)
     self.runner = ToolRunner(self.settings, self.logger)
 
-    stdout, stderr, rc = self.runner.run(self.settings.gofmt_cmd, ["-e", "-s"], stdin=Buffers.buffer_text(self.view))
+    stdout, stderr, rc = self.runner.run(self.settings.gofmt_cmd, self.settings.gofmt_args, stdin=Buffers.buffer_text(self.view))
 
     # Clear previous syntax error marks
     self.view.erase_regions("mark")
