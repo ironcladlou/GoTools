@@ -56,6 +56,9 @@ class GoToolsSettings():
     # For GOPATH, env < plugin < project, and project supports replacement of
     # ${gopath} with whatever preceded in the hierarchy.
     self.gopath = settings.plugin.get('gopath', os.getenv('GOPATH', ''))
+    if len(self.gopath) == 0:
+      self.gopath = GOENV['GOPATH']
+
     if 'gopath' in settings.project:
       self.gopath = settings.project['gopath'].replace('${gopath}', self.gopath)
 
