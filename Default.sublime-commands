@@ -1,64 +1,64 @@
 [
   {
     "caption": "GoTools: Go to definition",
-    "command": "godef"
+    "command": "gotools_goto_def"
   },
   {
     "caption": "GoTools: Format",
-    "command": "gofmt"
+    "command": "gotools_format"
   },
   {
     "caption": "GoTools: Oracle: Callers",
-    "command": "gooracle",
+    "command": "gotools_oracle",
     "args": {
       "command": "callers"
     }
   },
   {
     "caption": "GoTools: Oracle: Callees",
-    "command": "gooracle",
+    "command": "gotools_oracle",
     "args": {
       "command": "callees"
     }
   },
   {
     "caption": "GoTools: Oracle: Callstack",
-    "command": "gooracle",
+    "command": "gotools_oracle",
     "args": {
       "command": "callstack"
     }
   },
   {
     "caption": "GoTools: Oracle: Describe",
-    "command": "gooracle",
+    "command": "gotools_oracle",
     "args": {
       "command": "describe"
     }
   },
   {
     "caption": "GoTools: Oracle: Freevars",
-    "command": "gooracle",
+    "command": "gotools_oracle",
     "args": {
       "command": "freevars"
     }
   },
   {
     "caption": "GoTools: Oracle: Implements",
-    "command": "gooracle",
+    "command": "gotools_oracle",
     "args": {
       "command": "implements"
     }
   },
   {
     "caption": "GoTools: Oracle: Peers",
-    "command": "gooracle",
+    "command": "gotools_oracle",
     "args": {
       "command": "peers"
     }
   },
   {
     "caption": "GoTools: Oracle: Referrers",
-    "command": "gooracle",
+    "command": "gotools_oracle",
     "args": {
       "command": "referrers"
     }

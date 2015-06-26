@@ -2,29 +2,26 @@
   // The GOPATH used for plugin operations. May be overridden and used as a
   // substitution value in the gopath project setting. Defaults to the GOPATH
   // environment variable if left blank or undefined.
-  // "gopath": "",
+  "gopath": "",
 
-  // Enable gofmt formatting after a file is saved.
-  "gofmt_enabled": true,
+  // Format source files each time they're saved.
+  "format_on_save": true,
 
-  // Instead of `gofmt`, use another command (e.g. goimports).
-  "gofmt_cmd": "gofmt",
+  // A formatting backend (must be either 'gofmt' or 'goimports').
+  "format_backend": "gofmt",
 
-  // Godef command backend (either 'godef' or 'oracle')
-  "godef_backend": "oracle",
+  // A go-to-definition backend (must be either 'oracle' or 'godef').
+  "goto_def_backend": "oracle",
 
-  // Enable gocode autocompletion support.
-  "gocode_enabled": true,
+  // Enable gocode autocompletion.
+  "autocomplete": true,
 
-  // Enable GoTools console debug output.
+  // Enable GoTools debugging output to the Sublime console.
   "debug_enabled": false,
 
-  // Use tabs for .go files
+  // Use tabs for Go source files by default.
   "translate_tabs_to_spaces": false,
 
-  // Use GoTools for all *.go files.
-  "extensions":
-  [
-    "go"
-  ]
+  // Use GoTools for all Go source files.
+  "extensions": ["go"]
 }

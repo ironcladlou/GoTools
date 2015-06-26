@@ -46,29 +46,43 @@ A documented [example project file](ExampleProject.sublime-project) is provided.
 
 ## Using GoTools
 
-Most GoTools commands are available via the Sublime Text command palette. Open the palette when viewing a Go source file and search for "GoTools" to see what's available.
+**NOTE:** Most GoTools commands are available via the Sublime Text command palette. Open the palette when viewing a Go source file and search for "GoTools" to see what's available.
 
 Many of the build commands are also available via the context menu.
 
+#### Format on Save
+
+GoTools will format Go source buffers each time they're saved. To disable automatic formatting, set `format_on_save` in your [GoTools settings](GoTools.sublime-settings).
+
+Here's an example key binding which formats a source file when `<ctrl>+<alt>+f` is pressed:
+
+```json
+{"keys": ["ctrl+alt+f"], "command": "gotools_format"}
+```
+
+By default [gofmt](https://golang.org/cmd/gofmt/) is used for formatting. To change the backend, set `format_backend` in your [GoTools settings](GoTools.sublime-settings).
+
 #### Go to Definition
 
-GoTools provides a `godef` Sublime Text command which can be bound to keys or called by other plugins. It will open the definition at the symbol under the caret in a new tab.
+GoTools provides a `gotools_goto_def` Sublime Text command which will jump to the symbol definition at the cursor.
 
-Here's an example `sublime-keymap` entry which executes `godef` when `<ctrl>+g` is pressed:
-
-```json
-{"keys": ["ctrl+.", "g"], "command": "godef"}
-```
-
-Here's an example `sublime-mousemap` entry which executes `godef` when `<ctrl>+<left mouse>` is pressed:
+Here's an example key binding which will go to a definition when `<ctrl+g>` is pressed:
 
 ```json
-{"button": "button1", "count": 1, "modifiers": ["ctrl"], "command": "godef"}
+{"keys": ["ctrl+g"], "command": "gotools_goto_def"}
 ```
+
+Here's an example `sublime-mousemap` entry which will go to a definition using `<ctrl>+<left mouse>`:
+
+```json
+{"button": "button1", "count": 1, "modifiers": ["ctrl"], "command": "gotools_goto_def"}
+```
+
+By default [oracle](https://godoc.org/golang.org/x/tools/oracle) is used for definition support. To change the backend, set `goto_def_backend` in your [GoTools settings](GoTools.sublime-settings).
 
 #### Autocomplete
 
-Autocompletion is backed by `gocode` and integrated with Sublime Text's built-in suggestion engine.
+GoTools integrates the Sublime Text autocompletion engine with [gocode](https://github.com/nsf/gocode).
 
 Here's an example key binding which autocompletes when `<ctrl>+<space>` is pressed:
 
@@ -76,11 +90,13 @@ Here's an example key binding which autocompletes when `<ctrl>+<space>` is press
 {"keys": ["ctrl+space"], "command": "auto_complete"}
 ```
 
-When `gocode` has suggestions, a specially formatted suggestion list will appear, including type information for each suggestion.
+When suggestions are available, a specially formatted suggestion list will appear, including type information for each suggestion.
 
-#### Go Builds
+To disable autocompletion integration, set `autocomplete` in your [GoTools settings](GoTools.sublime-settings).
 
-Build support is backed by `go build` and integrates with the Sublime Text build system.
+#### Builds
+
+GoTools integrates the Sublime Text build system with `go build`.
 
 Activate the GoTools build system from the Sublime Text menu by selecting it from `Tools -> Build System`. If the build system is set to `Automatic`, GoTools will be automatically used for builds when editing Go source files.
 
@@ -90,27 +106,41 @@ There are several ways to perform a build:
   * A key bound to the `build` command
   * The command palette, as `Build: Build`
 
-A `Clean Build` command variant is also provided which recursively deletes all `GOPATH/pkg` directory contents prior to executing the build as usual.
+A "Clean Build" command variant is also provided which recursively deletes all `GOPATH/pkg` directory contents prior to executing the build as usual.
 
-Build results are placed in the built-in Sublime Text build output panel which can be toggled with a command such as:
+Build results are placed in the Sublime Text build output panel which can be toggled with a command such as:
 
 ```json
 { "keys" : ["ctrl+m"], "command" : "show_panel" , "args" : {"panel": "output.exec", "toggle": true}},
 ```
 
-#### Go Tests
+Here's an example key binding which runs a build when `<ctrl>+b` is pressed:
 
-Test support is backed by `go test` and is integrated with the Sublime Text build system. 
+```json
+{ "keys": ["ctrl+b"], "command": "build" },
+```
 
-GoTools attempts to "do what you mean" depending on context. For instance, when using `Run Test at Cursor` in a test file which requires an `integration` Go build tag, GoTools will notice this and automatically add `-tags integration` to the test execution.
+Here's an example key binding which runs "Clean Build" when `<ctrl>+<alt>+b` is pressed:
+
+```json
+{ "keys": ["ctrl+alt+b"], "command": "build", "args": {"variant": "Clean Build"}},
+```
+
+#### Tests
+
+GoTools integrates the Sublime Text build system with `go test`.
+
+GoTools attempts to "do what you mean" depending on context. For instance, when using "Run Test at Cursor" in a test file which requires an `integration` Go build tag, GoTools will notice this and automatically add `-tags integration` to the test execution.
 
 The following GoTools build variants are available:
 
-  * `Run Tests` discovers test packages based on the `project_package` and `test_packages` settings relative to the project `gopath` and executes them.
-  * `Run Test at Cursor` runs a single test method at or surrounding the cursor.
-  * `Run Current Package Tests` runs tests for the package containing the current file.
-  * `Run Tagged Tests` is like `Run Tests` but for the packages specified in the `tagged_packages` setting.
-  * `Run Last Test` re-runs the last test variant that was executed.
+Variant                   | Description
+--------------------------|-------------
+Run Tests                 | Discovers test packages based on the `project_package` and `test_packages` settings relative to the project `gopath` and executes them.
+Run Test at Cursor        | Runs a single test method at or surrounding the cursor.
+Run Current Package Tests | Runs tests for the package containing the current file.
+Run Tagged Tests          | Like "Run Tests" but for the packages specified in the `tagged_packages` setting.
+Run Last Test             | Runs the last test variant that was executed.
 
 Test results are placed in the built-in Sublime Text build output panel which can be toggled with a command such as:
 
@@ -118,30 +148,42 @@ Test results are placed in the built-in Sublime Text build output panel which ca
 { "keys" : ["ctrl+m"], "command" : "show_panel" , "args" : {"panel": "output.exec", "toggle": true}},
 ```
 
+Here's an example key binding which runs the test at the cursor when `<ctrl>+<alt>+t` is pressed:
+
+```json
+{ "keys": ["ctrl+alt+t"], "command": "build", "args": {"variant": "Run Test at Cursor"}},
+```
+
+Replace `variant` in the command with any variant name from the preceding table for other bindings.
+
 #### Oracle Analysis (experimental)
 
-Source code analysis is backed by `oracle`. The following oracle commands are supported:
+GoTools integrates Sublime Text with [oracle](https://godoc.org/golang.org/x/tools/oracle). Oracle is invoked with the `gotools_oracle` Sublime Text command.
 
-* Callers
-* Callees
-* Callstack
-* Describe
-* Freevars (requires a selection)
-* Implements
-* Peers
-* Referrers
+Here's an example which runs the oracle "implements" command when `<ctrl+alt+i>` is pressed:
 
-Use the Sublime Text command palette to run each command (try filtering with "oracle").
+```json
+{ "keys" : ["ctrl+alt+i"], "command" : "gotools_oracle" , "args" : {"command": "implements"}},
+```
 
-See the [Default.sublime-commands](Default.sublime-commands) file for the Sublime Text commands which can be mapped to keys.
+The following oracle operations are supported as argments to the `gotools_oracle` command:
+
+Command      | Notes
+-------------|------
+callers      | Slow on large codebases.
+callees      | Slow on large codebases.
+callstack    | Slow on large codebases.
+describe     |
+freevars     | Requires a selection.
+implements   |
+peers        |
+referrers    |
 
 Oracle results are placed in a Sublime Text output panel which can be toggled with a command such as:
 
 ```json
 { "keys" : ["ctrl+m"], "command" : "show_panel" , "args" : {"panel": "output.gotools_oracle", "toggle": true}},
 ```
-
-**NOTE**: Many of the oracle commands can be extremely slow for large projects. The status bar will indicate when a command is in progress. Check the Sublime Text console logs for detailed output and troubleshooting.
 
 ### Gocode Caveats
 
