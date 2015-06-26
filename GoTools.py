@@ -64,10 +64,10 @@ class GoToolsSettings():
 
     # Plugin feature settings.
     self.debug_enabled = settings.get("debug_enabled")
-    self.gofmt_enabled = settings.get("gofmt_enabled")
-    self.gofmt_cmd = settings.get("gofmt_cmd")
-    self.gocode_enabled = settings.get("gocode_enabled")
-    self.godef_backend = settings.get("godef_backend")
+    self.gofmt_enabled = settings.get("format_on_save")
+    self.gofmt_cmd = settings.get("format_backend")
+    self.gocode_enabled = settings.get("autocomplete")
+    self.godef_backend = settings.get("goto_def_backend")
 
     # Project feature settings.
     self.project_package = settings.get("project_package")
@@ -174,7 +174,7 @@ class ToolRunner():
     except subprocess.CalledProcessError as e:
       raise
 
-class GodefCommand(sublime_plugin.WindowCommand):
+class GotoolsGotoDef(sublime_plugin.WindowCommand):
   def is_enabled(self):
     return GoBuffers.is_go_source(self.window.active_view())
 
@@ -288,7 +288,7 @@ class GodefCommand(sublime_plugin.WindowCommand):
         self.logger.status("godef failed: Please check console log for details")
         self.logger.error("timed out waiting for file load - giving up")
 
-class GofmtOnSave(sublime_plugin.EventListener):
+class GotoolsFormatOnSave(sublime_plugin.EventListener):
   def on_pre_save(self, view):
     if not GoBuffers.is_go_source(view): return
 
@@ -296,9 +296,9 @@ class GofmtOnSave(sublime_plugin.EventListener):
     if not settings.gofmt_enabled:
       return
 
-    view.run_command('gofmt')
+    view.run_command('gotools_format')
 
-class GofmtCommand(sublime_plugin.TextCommand):
+class GotoolsFormat(sublime_plugin.TextCommand):
   def is_enabled(self):
     return GoBuffers.is_go_source(self.view)
 
@@ -365,7 +365,7 @@ class GofmtCommand(sublime_plugin.TextCommand):
     if len(marks) > 0:
       self.view.add_regions("mark", marks, "mark", "dot", sublime.DRAW_STIPPLED_UNDERLINE | sublime.PERSISTENT)
 
-class GocodeSuggestions(sublime_plugin.EventListener):
+class GotoolsSuggestions(sublime_plugin.EventListener):
   CLASS_SYMBOLS = {
     "func": "ƒ",
     "var": "ν",
@@ -383,7 +383,7 @@ class GocodeSuggestions(sublime_plugin.EventListener):
     if not settings.gocode_enabled: return
 
     # set the lib-path for gocode's lookups
-    _, _, rc = runner.run("gocode", ["set", "lib-path", GocodeSuggestions.gocode_libpath(settings)])
+    _, _, rc = runner.run("gocode", ["set", "lib-path", GotoolsSuggestions.gocode_libpath(settings)])
 
     suggestionsJsonStr, stderr, rc = runner.run("gocode", ["-f=json", "autocomplete", 
       str(Buffers.offset_at_cursor(view)[0])], stdin=Buffers.buffer_text(view))
@@ -399,7 +399,7 @@ class GocodeSuggestions(sublime_plugin.EventListener):
       return []
     
     if len(suggestionsJson) > 0:
-      return ([GocodeSuggestions.build_suggestion(j) for j in suggestionsJson[1]], sublime.INHIBIT_WORD_COMPLETIONS)
+      return ([GotoolsSuggestions.build_suggestion(j) for j in suggestionsJson[1]], sublime.INHIBIT_WORD_COMPLETIONS)
     else:
       return []
 
@@ -418,10 +418,10 @@ class GocodeSuggestions(sublime_plugin.EventListener):
     label = '{0: <30.30} {1: <40.40} {2}'.format(
       json["name"],
       json["type"],
-      GocodeSuggestions.CLASS_SYMBOLS.get(json["class"], "?"))
+      GotoolsSuggestions.CLASS_SYMBOLS.get(json["class"], "?"))
     return (label, json["name"])
 
-class GobuildCommand(sublime_plugin.WindowCommand):
+class GotoolsBuildCommand(sublime_plugin.WindowCommand):
   def run(self, cmd = None, shell_cmd = None, file_regex = "", line_regex = "", working_dir = "",
           encoding = "utf-8", env = {}, quiet = False, kill = False,
           word_wrap = True, syntax = "Packages/Text/Plain text.tmLanguage",
@@ -533,7 +533,7 @@ class GobuildCommand(sublime_plugin.WindowCommand):
       self.logger.log("couldn't determine package for current file: " + view.file_name())
       return
 
-    tags = GobuildCommand.tags_for_buffer(view)
+    tags = self.tags_for_buffer(view)
 
     self.logger.log("running tests for package: " + pkg)
     self.test_packages(exec_opts=exec_opts, packages=[pkg], tags=tags)
@@ -554,7 +554,7 @@ class GobuildCommand(sublime_plugin.WindowCommand):
       self.logger.log("couldn't determine package for current file: " + view.file_name())
       return
 
-    tags = GobuildCommand.tags_for_buffer(view)
+    tags = self.tags_for_buffer(view)
 
     self.logger.log("running test: " + pkg + "#" + func_name)
     self.test_packages(exec_opts=exec_opts, packages=[pkg], patterns=[func_name], tags=tags)
@@ -611,7 +611,7 @@ class GobuildCommand(sublime_plugin.WindowCommand):
     return found_tags
 
 
-class GooracleCommand(sublime_plugin.WindowCommand):
+class GotoolsOracleCommand(sublime_plugin.WindowCommand):
   def is_enabled(self):
     return GoBuffers.is_go_source(self.window.active_view())
 

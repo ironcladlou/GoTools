@@ -1,7 +1,7 @@
 {
   "cmd": [],
   "working_dir": "",
-  "target": "gobuild",
+  "target": "gotools_build",
   "selector": "source.go",
 
   "variants": [
