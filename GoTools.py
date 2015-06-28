@@ -15,9 +15,25 @@ from subprocess import Popen, PIPE
 
 # For Go runtime information, verify go on PATH and ask it about itself.
 def load_goenv():
+  # Find the go binary on PATH, and abort initialization if it can't be found.
+  ospath = os.getenv('PATH', '')
+  gobinary = None
+  for segment in ospath.split(':'):
+    candidate = os.path.join(segment, 'go')
+    if os.path.isfile(candidate):
+      gobinary = candidate
+      break
+
+  if not gobinary:
+    raise Exception("GoTools: couldn't find the go binary in PATH: " + ospath)
+
+  # Gather up the Go environment using `go env`.
+  print("GoTools: initializing using Go binary: " + gobinary)
   goenv = {}
-  goenvstr = Popen(['go', 'env'], stdout=PIPE).communicate()[0].decode()
-  for env in goenvstr.splitlines():
+  stdout, stderr = Popen([gobinary, 'env'], stdout=PIPE).communicate()
+  if stderr and len(stderr) > 0:
+    raise Exception("GoTools: '" + gobinary + " env' failed during initialization: " + stderr.decode())
+  for env in stdout.decode().splitlines():
     match = re.match('(.*)=\"(.*)\"', env)
     if match and match.group(1) and match.group(2):
       goenv[match.group(1)] = match.group(2)
@@ -25,7 +41,7 @@ def load_goenv():
 
 # Keep a plugin module cache of the Go runtime information.
 GOENV = load_goenv()
-print("GoTools: Initialized using Go environment: "+str(GOENV))
+print("GoTools: initialized with Go environment: "+str(GOENV))
 
 class MergedSettings():
   def __init__(self):
