@@ -166,7 +166,7 @@ Here's an example which runs the oracle "implements" command when `<ctrl+alt+i>`
 { "keys" : ["ctrl+alt+i"], "command" : "gotools_oracle" , "args" : {"command": "implements"}},
 ```
 
-The following oracle operations are supported as argments to the `gotools_oracle` command:
+The following oracle operations are supported as arguments to the `gotools_oracle` command:
 
 Command      | Notes
 -------------|------
