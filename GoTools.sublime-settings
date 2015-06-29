@@ -1,7 +1,9 @@
 {
   // The GOPATH used for plugin operations. May be overridden and used as a
-  // substitution value in the gopath project setting. Defaults to the GOPATH
-  // environment variable if left blank or undefined.
+  // substitution value in the gopath project setting. If left blank or
+  // undefined, the default will be the system GOPATH environment variable, or
+  // the GOPATH reported by `go env` if the system GOPATH environment variable
+  // is unset.
   "gopath": "",
 
   // Format source files each time they're saved.
