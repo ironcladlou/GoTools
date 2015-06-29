@@ -15,30 +15,32 @@ GoTools is a a [Sublime Text 3](http://www.sublimetext.com) plugin inspired by [
 
 ### Prerequisites
 
-GoTools will attempt to find `oracle`, `gofmt`, and `gocode` using GOPATH and GOROOT as resolved according to your GoTools settings. If you don't have these binaries, use `go get` to install them, e.g.:
+GoTools will attempt to find all external Go tools (`oracle`, `gofmt`, `gocode`, etc.) using `GOPATH` and `GOROOT` (not `PATH`). If you don't have these binaries, use `go get` to install them:
 
     go get -u -v golang.org/x/tools/cmd/oracle
     go get -u -v github.com/nsf/gocode
 
-GoTools is only tested with Go 1.4.
+GoTools is only tested with Go 1.4. Note that `gofmt` is now included with the Go distribution, and any `gofmt` installed to `GOPATH` is likely from an old Go version and should probably be removed.
 
 ### Installing
 
-To install on Linux:
+The easiest way to install GoTools is to use [Package Control](https://packagecontrol.io). Simply install Package Control, and then install the "GoTools" package using `Package Control: Install Package` from the command palette.
+
+If you want to install GoTools manually on Linux, use:
 
 `git clone git@github.com:ironcladlou/GoTools.git ~/.config/sublime-text-3/Packages/GoTools`
 
-To install on OSX:
+To install manually on OSX, use:
 
 `git clone git@github.com:ironcladlou/GoTools.git ~/Library/Application\ Support/Sublime\ Text\ 3/Packages/GoTools`
 
-### Configure GoTools
+### Configuring GoTools
 
 Create a GoTools settings file through the Sublime Text preferences menu at `Package Settings -> GoTools -> Settings -> User`.
 
 [Default settings](GoTools.sublime-settings) are provided and can be accessed through the Sublime Text preferences menu at `Package Settings -> GoTools -> Settings - Default`. Each option is documented in the settings file itself.
 
-### Configure Your Project
+### Configuring Your Project
 
 Create a `GoTools` settings key in a Sublime Text `.sublime-project` file (through the menu at `Project -> Edit Project`).
 
