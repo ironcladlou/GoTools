@@ -239,13 +239,12 @@ class GotoolsGotoDef(sublime_plugin.WindowCommand):
       self.logger.status("godef failed: Please enable debugging and check console log")
       return
     
-    if view.file_name() == file:
-      self.logger.log("opening definition at " + str(row) + ":" + str(col))
-      self.show_location(view, row, col, 1)
-    else:
-      self.logger.log("opening definition at " + file + ":" + str(row) + ":" + str(col))
-      godef_view = self.window.open_file(file)
-      self.show_location(godef_view, row, col)
+    self.logger.log("opening definition at " + file + ":" + str(row) + ":" + str(col))
+    w = view.window()
+    new_view = w.open_file(file + ':' + str(row) + ':' + str(col), sublime.ENCODED_POSITION)
+    group, index = w.get_view_index(new_view)
+    if group != -1:
+        w.focus_group(group)
 
   def get_oracle_location(self, filename, offset):
     args = ["-pos="+filename+":#"+str(offset), "-format=json", "definition"]
@@ -302,21 +301,6 @@ class GotoolsGotoDef(sublime_plugin.WindowCommand):
     col = int(location[2])
 
     return [file, row, col]
-
-  def show_location(self, view, row, col, retries=0):
-    if not view.is_loading():
-      pt = view.text_point(row-1, 0)
-
-      view.sel().clear()
-      view.sel().add(sublime.Region(pt))
-      view.show_at_center(pt)
-    else:
-      if retries < 10:
-        self.logger.status('waiting for file to load...')
-        sublime.set_timeout(lambda: self.show_location(view, row, col, retries+1), 10)
-      else:
-        self.logger.status("godef failed: Please check console log for details")
-        self.logger.error("timed out waiting for file load - giving up")
 
 class GotoolsFormatOnSave(sublime_plugin.EventListener):
   def on_pre_save(self, view):
