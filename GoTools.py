@@ -11,19 +11,30 @@ import shutil
 import glob
 import fnmatch
 import re
+import platform
 from subprocess import Popen, PIPE
 
 # For Go runtime information, verify go on PATH and ask it about itself.
 def load_goenv():
-  # Find the go binary on PATH, and abort initialization if it can't be found.
+  # Look up the system PATH.
   ospath = os.getenv('PATH', '')
+  # For Darwin, get a login shell to resolve PATH as launchd won't always
+  # provide it. This technique is borrowed from SublimeFixMacPath[1].
+  # [1] https://github.com/int3h/SublimeFixMacPath.
+  if platform.system() == "Darwin":
+    command = "/usr/bin/login -fqpl $USER $SHELL -l -c 'printf \"%s\" \"$PATH\"'"
+    stdout, stderr = Popen(command, stdout=PIPE, shell=True).communicate()
+    if stderr and len(stderr) > 0:
+      raise Exception("GoTools: couldn't resolve system PATH: " + stderr.decode())
+    ospath = stdout.decode()
+
+  # Find the go binary on PATH, and abort initialization if it can't be found.
   gobinary = None
   for segment in ospath.split(':'):
     candidate = os.path.join(segment, 'go')
     if os.path.isfile(candidate):
       gobinary = candidate
       break
-
   if not gobinary:
     raise Exception("GoTools: couldn't find the go binary in PATH: " + ospath)
 
