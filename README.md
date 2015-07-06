@@ -26,13 +26,7 @@ GoTools is only tested with Go 1.4. Note that `gofmt` is now included with the G
 
 The easiest way to install GoTools is to use [Package Control](https://packagecontrol.io). Simply install Package Control, and then install the "GoTools" package using `Package Control: Install Package` from the command palette.
 
-If you want to install GoTools manually on Linux, use:
-
-`git clone git@github.com:ironcladlou/GoTools.git ~/.config/sublime-text-3/Packages/GoTools`
-
-To install manually on OSX, use:
-
-`git clone git@github.com:ironcladlou/GoTools.git ~/Library/Application\ Support/Sublime\ Text\ 3/Packages/GoTools`
+If you want to install GoTools manually, download [the latest release](https://github.com/ironcladlou/GoTools/releases) and extract it to `~/.config/sublime-text-3/Packages/GoTools` on Linux, or `~/Library/Application\ Support/Sublime\ Text\ 3/Packages/GoTools` on OSX.
 
 ### Configuring GoTools
 
