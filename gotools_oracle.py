@@ -8,11 +8,11 @@ from .gotools_util import Logger
 from .gotools_util import ToolRunner
 from .gotools_settings import GoToolsSettings
 
-class GotoolsOracleCommand(sublime_plugin.WindowCommand):
+class GotoolsOracleCommand(sublime_plugin.TextCommand):
   def is_enabled(self):
-    return GoBuffers.is_go_source(self.window.active_view())
+    return GoBuffers.is_go_source(self.view)
 
-  def run(self, command=None):
+  def run(self, edit, command=None):
     self.settings = GoToolsSettings()
     self.logger = Logger(self.settings)
     self.runner = ToolRunner(self.settings, self.logger)
@@ -21,8 +21,7 @@ class GotoolsOracleCommand(sublime_plugin.WindowCommand):
       self.logger.log("command is required")
       return
 
-    view = self.window.active_view()
-    filename, row, col, offset, offset_end = Buffers.location_at_cursor(view)
+    filename, row, col, offset, offset_end = Buffers.location_at_cursor(self.view)
     pos = filename+":#"+str(offset)
 
     # Build up a package scope contaning all packages the user might have
@@ -69,10 +68,10 @@ class GotoolsOracleCommand(sublime_plugin.WindowCommand):
       return
     self.logger.status("oracle "+mode+" finished")
 
-    panel = sublime.active_window().create_output_panel('gotools_oracle')
+    panel = self.view.window().create_output_panel('gotools_oracle')
     panel.set_scratch(True)
     panel.settings().set("result_file_regex", regex)
     panel.run_command("select_all")
     panel.run_command("right_delete")
     panel.run_command('append', {'characters': output})
-    sublime.active_window().run_command("show_panel", {"panel": "output.gotools_oracle"})
+    self.view.window().run_command("show_panel", {"panel": "output.gotools_oracle"})

@@ -48,7 +48,7 @@ class GotoolsFormat(sublime_plugin.TextCommand):
       return
 
     # Everything's good, hide the syntax error panel
-    sublime.active_window().run_command("hide_panel", {"panel": "output.gotools_syntax_errors"})
+    self.view.window().run_command("hide_panel", {"panel": "output.gotools_syntax_errors"})
 
     # Remember the viewport position. When replacing the buffer, Sublime likes to jitter the
     # viewport around for some reason.
@@ -65,7 +65,7 @@ class GotoolsFormat(sublime_plugin.TextCommand):
 
   # Display an output panel containing the syntax errors, and set gutter marks for each error.
   def show_syntax_errors(self, stderr):
-    output_view = sublime.active_window().create_output_panel('gotools_syntax_errors')
+    output_view = self.view.window().create_output_panel('gotools_syntax_errors')
     output_view.set_scratch(True)
     output_view.settings().set("result_file_regex","^(.*):(\d+):(\d+):(.*)$")
     output_view.run_command("select_all")
@@ -73,7 +73,7 @@ class GotoolsFormat(sublime_plugin.TextCommand):
 
     syntax_output = stderr.replace("<standard input>", self.view.file_name())
     output_view.run_command('append', {'characters': syntax_output})
-    sublime.active_window().run_command("show_panel", {"panel": "output.gotools_syntax_errors"})
+    self.view.window().run_command("show_panel", {"panel": "output.gotools_syntax_errors"})
 
     marks = []
     for error in stderr.splitlines():
