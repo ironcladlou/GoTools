@@ -9,21 +9,27 @@ from .gotools_util import Logger
 from .gotools_util import ToolRunner
 from .gotools_settings import GoToolsSettings
 
-class GotoolsGotoDef(sublime_plugin.WindowCommand):
+class GotoolsGotoDef(sublime_plugin.TextCommand):
   def is_enabled(self):
-    return GoBuffers.is_go_source(self.window.active_view())
+    return GoBuffers.is_go_source(self.view)
 
-  def run(self):
+  # Capture mouse events so users can click on a definition.
+  def want_event(self):
+    return True
+
+  def run(self, edit, event=None):
     self.settings = GoToolsSettings()
     self.logger = Logger(self.settings)
     self.runner = ToolRunner(self.settings, self.logger)
-    view = self.window.active_view()
-    sublime.set_timeout_async(lambda: self.godef(view), 0)
+    sublime.set_timeout_async(lambda: self.godef(event), 0)
 
-  def godef(self, view):
+  def godef(self, event):
     # Find and store the current filename and byte offset at the
-    # cursor location
-    filename, row, col, offset, offset_end = Buffers.location_at_cursor(view)
+    # cursor or mouse event location.
+    if event:
+      filename, row, col, offset = Buffers.location_for_event(self.view, event)
+    else:
+      filename, row, col, offset, offset_end = Buffers.location_at_cursor(self.view)
 
     backend = self.settings.goto_def_backend if self.settings.goto_def_backend else ""
     try:
@@ -45,7 +51,7 @@ class GotoolsGotoDef(sublime_plugin.WindowCommand):
       return
     
     self.logger.log("opening definition at " + file + ":" + str(row) + ":" + str(col))
-    w = view.window()
+    w = self.view.window()
     new_view = w.open_file(file + ':' + str(row) + ':' + str(col), sublime.ENCODED_POSITION)
     group, index = w.get_view_index(new_view)
     if group != -1:

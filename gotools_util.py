@@ -23,6 +23,13 @@ class Buffers():
     offsets = Buffers.offset_at_cursor(view)
     return (view.file_name(), row, col, offsets[0], offsets[1])
 
+  @staticmethod
+  def location_for_event(view, event):
+    pt = view.window_to_text((event["x"], event["y"]))
+    row, col = view.rowcol(pt)
+    offset = view.text_point(row, col)
+    return (view.file_name(), row, col, offset)
+
 class GoBuffers():
   @staticmethod
   def func_name_at_cursor(view):
