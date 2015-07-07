@@ -106,7 +106,7 @@ class GotoolsBuildCommand(sublime_plugin.WindowCommand):
     cmd += packages
 
     for p in patterns:
-      cmd += ["-run", p]
+      cmd += ["-run", "^"+p+"$"]
 
     exec_opts["cmd"] = cmd
 
