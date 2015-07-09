@@ -77,8 +77,11 @@ def load_goenv():
 
   # Find the go binary on PATH, and abort initialization if it can't be found.
   gobinary = None
-  for segment in ospath.split(':'):
-    candidate = os.path.join(segment, 'go')
+  goname = "go"
+  if platform.system() == "Windows":
+    goname = "go.exe"
+  for segment in ospath.split(os.pathsep):
+    candidate = os.path.join(segment, goname)
     if os.path.isfile(candidate):
       gobinary = candidate
       break
@@ -93,6 +96,8 @@ def load_goenv():
     raise Exception("GoTools: '" + gobinary + " env' failed during initialization: " + stderr.decode())
   for env in stdout.decode().splitlines():
     match = re.match('(.*)=\"(.*)\"', env)
+    if platform.system() == "Windows":
+      match = re.match('(?:set\s)(.*)=(.*)', env)
     if match and match.group(1) and match.group(2):
       goenv[match.group(1)] = match.group(2)
   return goenv
