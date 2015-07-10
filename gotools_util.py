@@ -1,6 +1,7 @@
 import sublime
 import os
 import re
+import platform
 import subprocess
 import time
 
@@ -74,6 +75,9 @@ class ToolRunner():
     searchpaths = list(map(lambda x: os.path.join(x, 'bin'), self.settings.gopath.split(':')))
     searchpaths.append(os.path.join(self.settings.goroot, 'bin'))
     searchpaths.append(self.settings.gorootbin)
+
+    if platform.system() == "Windows":
+      tool = tool + ".exe"
 
     for path in searchpaths:
       candidate = os.path.join(path, tool)
