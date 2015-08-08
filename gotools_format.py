@@ -27,12 +27,34 @@ class GotoolsFormat(sublime_plugin.TextCommand):
     self.logger = Logger(self.settings)
     self.runner = ToolRunner(self.settings, self.logger)
 
+    command = ""
     args = []
     if self.settings.format_backend == "gofmt":
+      command = "gofmt"
       args = ["-e", "-s"]
-    elif self.settings.format_backend == "goimports":
+    elif self.settings.format_backend in ["goimports", "both"] :
+      command = "goimports"
       args = ["-e"]
-    stdout, stderr, rc = self.runner.run(self.settings.format_backend, args, stdin=Buffers.buffer_text(self.view))
+
+    stdout, stderr, rc = self.runner.run(command, args, stdin=Buffers.buffer_text(self.view))
+
+    # Clear previous syntax error marks
+    self.view.erase_regions("mark")
+
+    if rc == 2:
+      # Show syntax errors and bail
+      self.show_syntax_errors(stderr)
+      return
+
+    if rc != 0:
+      # Ermmm...
+      self.logger.log("unknown gofmt error (" + str(rc) + ") stderr:\n" + stderr)
+      return
+
+    if self.settings.format_backend == "both":
+      command = "gofmt"
+      args = ["-e", "-s"]
+      stdout, stderr, rc = self.runner.run(command, args, stdin=stdout.encode('utf-8'))
 
     # Clear previous syntax error marks
     self.view.erase_regions("mark")

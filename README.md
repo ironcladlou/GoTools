@@ -56,7 +56,7 @@ Here's an example key binding which formats a source file when `<ctrl>+<alt>+f` 
 {"keys": ["ctrl+alt+f"], "command": "gotools_format"}
 ```
 
-By default [gofmt](https://golang.org/cmd/gofmt/) is used for formatting. To change the backend, set `format_backend` in your [GoTools settings](GoTools.sublime-settings).
+By default [gofmt](https://golang.org/cmd/gofmt/) is used for formatting. To change the backend, set `format_backend` in your [GoTools settings](GoTools.sublime-settings). [goimports](https://godoc.org/golang.org/x/tools/cmd/goimports) is also available, as well as the option to first run goimports, then gofmt. This third option is useful when you want the automatic import resolution as well as the simplification (`-s`) feature from gofmt at the same time.
 
 #### Go to Definition
 
