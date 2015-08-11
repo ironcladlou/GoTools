@@ -1,6 +1,6 @@
 # GoTools
 
-GoTools is a a [Sublime Text 3](http://www.sublimetext.com) plugin inspired by [vim-go](https://github.com/fatih/vim-go). Rather than attempting to reinvent various supporting IDE components, it provides integration with existing community-supported tools for the [Go programming language](http://www.golang.org).
+GoTools is a [Go programming language](http://www.golang.org) plugin for [Sublime Text 3](http://www.sublimetext.com) inspired by [vim-go](https://github.com/fatih/vim-go). Rather than attempting to reinvent various supporting IDE components, it provides integration with existing community-supported tools.
 
 **Please note** that the project is still considered a pre-release alpha/personal project and no effort is being made to maintain compatibility with any old settings or environments.
 
