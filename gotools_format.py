@@ -27,6 +27,14 @@ class GotoolsFormat(sublime_plugin.TextCommand):
     self.logger = Logger(self.settings)
     self.runner = ToolRunner(self.settings, self.logger)
 
+    # Remember the viewport position. When replacing the buffer, Sublime likes to jitter the
+    # viewport around for some reason.
+    self.prev_viewport_pos = self.view.viewport_position()
+    self.logger.log("viewport pos: " + str(self.view) + ":" + str(self.prev_viewport_pos))
+
+    sublime.set_timeout_async(lambda: self.format(edit), 0)
+  
+  def format(self, edit):
     command = ""
     args = []
     if self.settings.format_backend == "gofmt":
@@ -40,12 +48,10 @@ class GotoolsFormat(sublime_plugin.TextCommand):
 
     # Clear previous syntax error marks
     self.view.erase_regions("mark")
-
     if rc == 2:
       # Show syntax errors and bail
       self.show_syntax_errors(stderr)
       return
-
     if rc != 0:
       # Ermmm...
       self.logger.log("unknown gofmt error (" + str(rc) + ") stderr:\n" + stderr)
@@ -55,35 +61,21 @@ class GotoolsFormat(sublime_plugin.TextCommand):
       command = "gofmt"
       args = ["-e", "-s"]
       stdout, stderr, rc = self.runner.run(command, args, stdin=stdout.encode('utf-8'))
-
-    # Clear previous syntax error marks
-    self.view.erase_regions("mark")
-
-    if rc == 2:
-      # Show syntax errors and bail
-      self.show_syntax_errors(stderr)
-      return
-
-    if rc != 0:
-      # Ermmm...
-      self.logger.log("unknown gofmt error (" + str(rc) + ") stderr:\n" + stderr)
-      return
+      # Clear previous syntax error marks
+      self.view.erase_regions("mark")
+      if rc == 2:
+        # Show syntax errors and bail
+        self.show_syntax_errors(stderr)
+        return
+      if rc != 0:
+        # Ermmm...
+        self.logger.log("unknown gofmt error (" + str(rc) + ") stderr:\n" + stderr)
+        return
 
     # Everything's good, hide the syntax error panel
     self.view.window().run_command("hide_panel", {"panel": "output.gotools_syntax_errors"})
 
-    # Remember the viewport position. When replacing the buffer, Sublime likes to jitter the
-    # viewport around for some reason.
-    self.prev_viewport_pos = self.view.viewport_position()
-
-    # Replace the buffer with gofmt output.
-    self.view.replace(edit, sublime.Region(0, self.view.size()), stdout)
-
-    # Restore the viewport on the main GUI thread (which is the only way this works).
-    sublime.set_timeout(self.restore_viewport, 0)
-
-  def restore_viewport(self):
-    self.view.set_viewport_position(self.prev_viewport_pos, False)
+    self.view.window().run_command("gotools_format_replace", { "buffer" : stdout, "restore_pos": self.prev_viewport_pos})
 
   # Display an output panel containing the syntax errors, and set gutter marks for each error.
   def show_syntax_errors(self, stderr):
@@ -111,3 +103,17 @@ class GotoolsFormat(sublime_plugin.TextCommand):
 
     if len(marks) > 0:
       self.view.add_regions("mark", marks, "mark", "dot", sublime.DRAW_STIPPLED_UNDERLINE | sublime.PERSISTENT)
+
+class GotoolsFormatReplace(sublime_plugin.TextCommand):
+  def run(self, edit, buffer, restore_pos):
+    self.settings = GoToolsSettings()
+    self.logger = Logger(self.settings)
+    self.view.replace(edit, sublime.Region(0, self.view.size()), buffer)
+    self.logger.log("viewport pos 2: " + str(self.view) + ":" + str(self.view.viewport_position()))
+    # Restore the viewport on the main GUI thread (which is the only way this works).
+    sublime.set_timeout(self.restore_viewport(self.view, restore_pos), 0)
+
+  def restore_viewport(self, view, pos):
+    view.sel().clear()
+    view.set_viewport_position(pos, False)
+    self.logger.log("viewport pos 3: " + str(view) + ":" + str(view.viewport_position()))
