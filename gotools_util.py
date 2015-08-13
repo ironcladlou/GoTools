@@ -97,9 +97,15 @@ class ToolRunner():
 
       env = os.environ.copy()
       env["GOPATH"] = self.settings.gopath
+
+      # Hide popups on Windows
+      si = None
+      if platform.system() == "Windows":
+        si = subprocess.STARTUPINFO()
+        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
     
       start = time.time()
-      p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+      p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, startupinfo=si)
       stdout, stderr = p.communicate(input=stdin, timeout=timeout)
       p.wait(timeout=timeout)
       elapsed = round(time.time() - start)
