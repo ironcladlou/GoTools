@@ -88,10 +88,16 @@ def load_goenv():
   if not gobinary:
     raise Exception("GoTools: couldn't find the go binary in PATH: " + ospath)
 
+  # Hide popups on Windows
+  si = None
+  if platform.system() == "Windows":
+    si = subprocess.STARTUPINFO()
+    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+
   # Gather up the Go environment using `go env`.
   print("GoTools: initializing using Go binary: " + gobinary)
   goenv = {}
-  stdout, stderr = subprocess.Popen([gobinary, 'env'], stdout=subprocess.PIPE).communicate()
+  stdout, stderr = subprocess.Popen([gobinary, 'env'], stdout=subprocess.PIPE, startupinfo=si).communicate()
   if stderr and len(stderr) > 0:
     raise Exception("GoTools: '" + gobinary + " env' failed during initialization: " + stderr.decode())
   for env in stdout.decode().splitlines():
