@@ -8,6 +8,10 @@
     "command": "gotools_format"
   },
   {
+    "caption": "GoTools: Rename",
+    "command": "gotools_rename"
+  },
+  {
     "caption": "GoTools: Oracle: Callers",
     "command": "gotools_oracle",
     "args": {
