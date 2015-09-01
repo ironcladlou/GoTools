@@ -6,6 +6,10 @@
   // is unset.
   "gopath": "",
 
+  // The PATH used for plugin operations. On OSX this defaults to
+  // /usr/local/go/bin You may need to set this for gorename to work.
+  "path": "",
+
   // Format source files each time they're saved.
   "format_on_save": true,
 

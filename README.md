@@ -17,8 +17,11 @@ GoTools is a [Go programming language](http://www.golang.org) plugin for [Sublim
 
 GoTools will attempt to find all external Go tools (`oracle`, `gofmt`, `gocode`, etc.) using `GOPATH` and `GOROOT` (not `PATH`). If you don't have these binaries, use `go get` to install them:
 
-    go get -u -v golang.org/x/tools/cmd/oracle
     go get -u -v github.com/nsf/gocode
+    go get -u -v github.com/rogpeppe/godef
+    go get -u -v golang.org/x/tools/cmd/goimports
+    go get -u -v golang.org/x/tools/cmd/oracle
+    go get -u -v golang.org/x/tools/cmd/rename
 
 GoTools is only tested with Go 1.4. Note that `gofmt` is now included with the Go distribution, and any `gofmt` installed to `GOPATH` is likely from an old Go version and should probably be removed.
 
@@ -97,7 +100,7 @@ GoTools integrates the Sublime Text build system with `go build`.
 Activate the GoTools build system from the Sublime Text menu by selecting it from `Tools -> Build System`. If the build system is set to `Automatic`, GoTools will be automatically used for builds when editing Go source files.
 
 There are several ways to perform a build:
- 
+
   * From the Sublime Text menu at `Tools -> Build`
   * A key bound to the `build` command
   * The command palette, as `Build: Build`
@@ -180,6 +183,10 @@ Oracle results are placed in a Sublime Text output panel which can be toggled wi
 ```json
 { "keys" : ["ctrl+m"], "command" : "show_panel" , "args" : {"panel": "output.gotools_oracle", "toggle": true}},
 ```
+
+#### Rename
+
+The `gorename` command calls back to the `go` binary. You may need to specify the `path` option to get this to work.
 
 ### Gocode Caveats
 

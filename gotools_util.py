@@ -98,12 +98,24 @@ class ToolRunner():
       env = os.environ.copy()
       env["GOPATH"] = self.settings.gopath
 
+      if self.settings.path:
+        # Use these extra path bits if the user has specified it
+        if env["PATH"] != "":
+          env["PATH"] += ":"
+        env["PATH"] += self.settings.path
+      elif platform.system() == "Darwin":
+        # If the user hasn't specified anything we'll try to use the default go
+        # install location on OSX
+        if env["PATH"] != "":
+          env["PATH"] += ":"
+        env["PATH"] += "/usr/local/go/bin"
+
       # Hide popups on Windows
       si = None
       if platform.system() == "Windows":
         si = subprocess.STARTUPINFO()
         si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    
+
       start = time.time()
       p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, startupinfo=si)
       stdout, stderr = p.communicate(input=stdin, timeout=timeout)

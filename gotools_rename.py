@@ -14,7 +14,6 @@ class GotoolsRenameCommand(sublime_plugin.TextCommand):
 
   def run(self, edit):
     self.settings = GoToolsSettings()
-    self.settings.debug_enabled = True
     self.logger = Logger(self.settings)
     self.runner = ToolRunner(self.settings, self.logger)
     self.view.window().show_input_panel("rename", "", self.do_rename, None, None)
