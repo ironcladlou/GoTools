@@ -92,23 +92,15 @@ class ToolRunner():
     cmd = [toolpath] + args
     try:
       self.logger.log("spawning process:")
-      self.logger.log("GOPATH=" + self.settings.gopath)
-      self.logger.log(' '.join(cmd))
 
       env = os.environ.copy()
+      env["PATH"] = self.settings.ospath
       env["GOPATH"] = self.settings.gopath
 
-      if self.settings.path:
-        # Use these extra path bits if the user has specified it
-        if env["PATH"] != "":
-          env["PATH"] += ":"
-        env["PATH"] += self.settings.path
-      elif platform.system() == "Darwin":
-        # If the user hasn't specified anything we'll try to use the default go
-        # install location on OSX
-        if env["PATH"] != "":
-          env["PATH"] += ":"
-        env["PATH"] += "/usr/local/go/bin"
+      self.logger.log("  PATH:        " + env["PATH"])
+      self.logger.log("  GOPATH:      " + env["GOPATH"])
+      self.logger.log("  environment: " + str(env))
+      self.logger.log("  command:     " + " ".join(cmd))
 
       # Hide popups on Windows
       si = None

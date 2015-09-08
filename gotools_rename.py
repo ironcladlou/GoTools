@@ -16,14 +16,15 @@ class GotoolsRenameCommand(sublime_plugin.TextCommand):
     self.settings = GoToolsSettings()
     self.logger = Logger(self.settings)
     self.runner = ToolRunner(self.settings, self.logger)
-    self.view.window().show_input_panel("rename", "", self.do_rename, None, None)
+    self.view.window().show_input_panel("Go rename:", "", self.do_rename, None, None)
 
   def do_rename(self, name):
     self.logger.status("running rename")
     filename, _row, _col, offset, _offset_end = Buffers.location_at_cursor(self.view)
     args = [
       "-offset", "{file}:#{offset}".format(file=filename, offset=offset),
-      "-to", name
+      "-to", name,
+      "-v"
     ]
     output, err, exit = self.runner.run("gorename", args, timeout=15)
 
@@ -31,3 +32,14 @@ class GotoolsRenameCommand(sublime_plugin.TextCommand):
       self.logger.status("rename failed ({0}): {1}".format(exit, err))
       return
     self.logger.status("renamed symbol to {name}".format(name=name))
+
+    panel = self.view.window().create_output_panel('gotools_rename')
+    panel.set_scratch(True)
+    # TODO: gorename isn't emitting line numbers, so to get clickable
+    # referenced we'd need to process each line to append ':N' to make the
+    # sublime regex work properly (line number is a required capture group).
+    panel.settings().set("result_file_regex", "^\t(.*\.go)$")
+    panel.run_command("select_all")
+    panel.run_command("right_delete")
+    panel.run_command('append', {'characters': err})
+    self.view.window().run_command("show_panel", {"panel": "output.gotools_rename"})
