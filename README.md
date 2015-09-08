@@ -21,7 +21,7 @@ GoTools will attempt to find all external Go tools (`oracle`, `gofmt`, `gocode`,
     go get -u -v github.com/rogpeppe/godef
     go get -u -v golang.org/x/tools/cmd/goimports
     go get -u -v golang.org/x/tools/cmd/oracle
-    go get -u -v golang.org/x/tools/cmd/rename
+    go get -u -v golang.org/x/tools/cmd/gorename
 
 GoTools is only tested with Go 1.4. Note that `gofmt` is now included with the Go distribution, and any `gofmt` installed to `GOPATH` is likely from an old Go version and should probably be removed.
 
@@ -184,9 +184,18 @@ Oracle results are placed in a Sublime Text output panel which can be toggled wi
 { "keys" : ["ctrl+m"], "command" : "show_panel" , "args" : {"panel": "output.gotools_oracle", "toggle": true}},
 ```
 
-#### Rename
+#### Rename (experimental)
 
-The `gorename` command calls back to the `go` binary. You may need to specify the `path` option to get this to work.
+GoTools provides a `gotools_rename` command supported by [gorename](https://godoc.org/golang.org/x/tools/cmd/gorename) which supports type-safe renaming of identifiers.
+
+When the `gotools_rename` command is executed, an input panel labeled `Go rename:` will appear. Rename results are placed in a Sublime Text output panel which can be toggled with a command such as:
+
+```json
+{ "keys" : ["ctrl+m"], "command" : "show_panel" , "args" : {"panel": "output.gotools_rename", "toggle": true}},
+```
+
+**Important**: The `gorename` tool writes files in-place with no option for a dry-run. Changes might be destructive, and the tool is known to have bugs.
+
 
 ### Gocode Caveats
 
