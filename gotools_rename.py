@@ -16,10 +16,12 @@ class GotoolsRenameCommand(sublime_plugin.TextCommand):
     self.settings = GoToolsSettings()
     self.logger = Logger(self.settings)
     self.runner = ToolRunner(self.settings, self.logger)
-    self.view.window().show_input_panel("Go rename:", "", self.do_rename, None, None)
+    self.view.window().show_input_panel("Go rename:", "", self.do_rename_async, None, None)
+
+  def do_rename_async(self, name):
+    sublime.set_timeout_async(lambda: self.do_rename(name), 0)
 
   def do_rename(self, name):
-    self.logger.status("running rename")
     filename, _row, _col, offset, _offset_end = Buffers.location_at_cursor(self.view)
     args = [
       "-offset", "{file}:#{offset}".format(file=filename, offset=offset),
