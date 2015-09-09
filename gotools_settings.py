@@ -26,6 +26,7 @@ class GoToolsSettings():
     self.goarch = self.GoEnv["GOHOSTARCH"]
     self.goos = self.GoEnv["GOHOSTOS"]
     self.go_tools = self.GoEnv["GOTOOLDIR"]
+    self.ospath = self.GoEnv["OSPATH"]
 
     if not self.goroot or not self.goarch or not self.goos or not self.go_tools:
       raise Exception("GoTools: ERROR: Couldn't detect Go runtime information from `go env`.")
@@ -97,6 +98,7 @@ def load_goenv():
   # Gather up the Go environment using `go env`.
   print("GoTools: initializing using Go binary: " + gobinary)
   goenv = {}
+  goenv["OSPATH"] = ospath
   stdout, stderr = subprocess.Popen([gobinary, 'env'], stdout=subprocess.PIPE, startupinfo=si).communicate()
   if stderr and len(stderr) > 0:
     raise Exception("GoTools: '" + gobinary + " env' failed during initialization: " + stderr.decode())
