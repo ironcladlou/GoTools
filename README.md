@@ -11,6 +11,7 @@ GoTools is a [Go programming language](http://www.golang.org) plugin for [Sublim
 * Autocompletion (using [gocode](https://github.com/nsf/gocode))
 * Build and test integration
 * Source analysis (using [oracle](https://godoc.org/golang.org/x/tools/oracle))
+* Identifier renaming (using [gorename](https://godoc.org/golang.org/x/tools/cmd/gorename))
 * Improved syntax support (borrowed from [GoSublime](https://github.com/DisposaBoy/GoSublime))
 
 ### Prerequisites
