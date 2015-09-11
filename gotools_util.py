@@ -72,7 +72,9 @@ class ToolRunner():
 
   def run(self, tool, args=[], stdin=None, timeout=5):
     toolpath = None
-    searchpaths = list(map(lambda x: os.path.join(x, 'bin'), self.settings.gopath.split(':')))
+    searchpaths = list(map(lambda x: os.path.join(x, 'bin'), self.settings.gopath.split(os.pathsep)))
+    for p in self.settings.ospath.split(os.pathsep):
+      searchpaths.append(p)
     searchpaths.append(os.path.join(self.settings.goroot, 'bin'))
     searchpaths.append(self.settings.gorootbin)
 
@@ -96,9 +98,11 @@ class ToolRunner():
       env = os.environ.copy()
       env["PATH"] = self.settings.ospath
       env["GOPATH"] = self.settings.gopath
+      env["GOROOT"] = self.settings.goroot
 
       self.logger.log("  PATH:        " + env["PATH"])
       self.logger.log("  GOPATH:      " + env["GOPATH"])
+      self.logger.log("  GOROOT:      " + env["GOROOT"])
       self.logger.log("  environment: " + str(env))
       self.logger.log("  command:     " + " ".join(cmd))
 

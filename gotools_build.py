@@ -29,6 +29,8 @@ class GotoolsBuildCommand(sublime_plugin.WindowCommand):
       file_regex = "^(.*\\.go):(\\d+):()(.*)$"
 
     env["GOPATH"] = self.settings.gopath
+    env["GOROOT"] = self.settings.goroot
+    env["PATH"] = self.settings.ospath
 
     exec_opts = {
       "cmd": cmd,
@@ -82,7 +84,8 @@ class GotoolsBuildCommand(sublime_plugin.WindowCommand):
 
     self.logger.log("running build for packages: " + str(build_packages))
 
-    exec_opts["cmd"] = ["go", "install"] + build_packages
+    go = GoToolsSettings.find_go_binary(self.settings.ospath)
+    exec_opts["cmd"] = [go, "install"] + build_packages
 
     self.window.run_command("exec", exec_opts)
 
@@ -92,7 +95,8 @@ class GotoolsBuildCommand(sublime_plugin.WindowCommand):
     self.logger.log("test packages: " + str(packages))
     self.logger.log("test patterns: " + str(patterns))
 
-    cmd = ["go", "test"]
+    go = GoToolsSettings.find_go_binary(self.settings.ospath)
+    cmd = [go, "test"]
 
     if len(tags) > 0:
       cmd += ["-tags", ",".join(tags)]
