@@ -13,9 +13,6 @@ class GotoolsRenameCommand(sublime_plugin.TextCommand):
     return GoBuffers.is_go_source(self.view)
 
   def run(self, edit):
-    self.settings = GoToolsSettings()
-    self.logger = Logger(self.settings)
-    self.runner = ToolRunner(self.settings, self.logger)
     self.view.window().show_input_panel("Go rename:", "", self.do_rename_async, None, None)
 
   def do_rename_async(self, name):
@@ -28,12 +25,12 @@ class GotoolsRenameCommand(sublime_plugin.TextCommand):
       "-to", name,
       "-v"
     ]
-    output, err, exit = self.runner.run("gorename", args, timeout=15)
+    output, err, exit = ToolRunner.run("gorename", args, timeout=15)
 
     if exit != 0:
-      self.logger.status("rename failed ({0}): {1}".format(exit, err))
+      Logger.status("rename failed ({0}): {1}".format(exit, err))
       return
-    self.logger.status("renamed symbol to {name}".format(name=name))
+    Logger.status("renamed symbol to {name}".format(name=name))
 
     panel = self.view.window().create_output_panel('gotools_rename')
     panel.set_scratch(True)

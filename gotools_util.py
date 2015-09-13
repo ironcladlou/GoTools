@@ -5,6 +5,8 @@ import platform
 import subprocess
 import time
 
+from .gotools_settings import GoToolsSettings
+
 class Buffers():
   @staticmethod
   def buffer_text(view):
@@ -52,31 +54,28 @@ class GoBuffers():
     return view.score_selector(0, 'source.go') != 0
 
 class Logger():
-  def __init__(self, settings):
-    self.settings = settings
+  @staticmethod
+  def log(msg):
+    if GoToolsSettings.Instance.debug_enabled:
+      print("GoTools: DEBUG: {0}".format(msg))
 
-  def log(self, msg):
-    if self.settings.debug_enabled:
-      print("GoTools: " + msg)
+  @staticmethod
+  def error(msg):
+    print("GoTools: ERROR: {0}".format(msg))
 
-  def error(self, msg):
-    print("GoTools: ERROR: " + msg)
-
-  def status(self, msg):
+  @staticmethod
+  def status(msg):
     sublime.status_message("GoTools: " + msg)
 
 class ToolRunner():
-  def __init__(self, settings, logger):
-    self.settings = settings
-    self.logger = logger
-
-  def run(self, tool, args=[], stdin=None, timeout=5):
+  @staticmethod
+  def run(tool, args=[], stdin=None, timeout=5):
     toolpath = None
-    searchpaths = list(map(lambda x: os.path.join(x, 'bin'), self.settings.gopath.split(os.pathsep)))
-    for p in self.settings.ospath.split(os.pathsep):
+    searchpaths = list(map(lambda x: os.path.join(x, 'bin'), GoToolsSettings.Instance.gopath.split(os.pathsep)))
+    for p in GoToolsSettings.Instance.ospath.split(os.pathsep):
       searchpaths.append(p)
-    searchpaths.append(os.path.join(self.settings.goroot, 'bin'))
-    searchpaths.append(self.settings.gorootbin)
+    searchpaths.append(os.path.join(GoToolsSettings.Instance.goroot, 'bin'))
+    searchpaths.append(GoToolsSettings.Instance.gorootbin)
 
     if platform.system() == "Windows":
       tool = tool + ".exe"
@@ -88,23 +87,20 @@ class ToolRunner():
         break
 
     if not toolpath:
-      self.logger.log("Couldn't find Go tool '" + tool + "' in:\n" + "\n".join(searchpaths))
-      raise Exception("Error running Go tool '" + tool + "'; check the console logs for details")
+      Logger.log("Couldn't find Go tool '{0}' in:\n{1}".format(tool, "\n".join(searchpaths)))
+      raise Exception("Error running Go tool '{0}'; check the console logs for details".format(tool))
 
     cmd = [toolpath] + args
     try:
-      self.logger.log("spawning process:")
+      Logger.log("spawning process...")
 
       env = os.environ.copy()
-      env["PATH"] = self.settings.ospath
-      env["GOPATH"] = self.settings.gopath
-      env["GOROOT"] = self.settings.goroot
+      env["PATH"] = GoToolsSettings.Instance.ospath
+      env["GOPATH"] = GoToolsSettings.Instance.gopath
+      env["GOROOT"] = GoToolsSettings.Instance.goroot
 
-      self.logger.log("  PATH:        " + env["PATH"])
-      self.logger.log("  GOPATH:      " + env["GOPATH"])
-      self.logger.log("  GOROOT:      " + env["GOROOT"])
-      self.logger.log("  environment: " + str(env))
-      self.logger.log("  command:     " + " ".join(cmd))
+      Logger.log("\tcommand:     " + " ".join(cmd))
+      Logger.log("\tenvironment: " + str(env))
 
       # Hide popups on Windows
       si = None
@@ -117,10 +113,10 @@ class ToolRunner():
       stdout, stderr = p.communicate(input=stdin, timeout=timeout)
       p.wait(timeout=timeout)
       elapsed = round(time.time() - start)
-      self.logger.log("process returned ("+ str(p.returncode) +") in " + str(elapsed) + " seconds")
+      Logger.log("process returned ({0}) in {1} seconds".format(str(p.returncode), str(elapsed)))
       stderr = stderr.decode("utf-8")
       if len(stderr) > 0:
-        self.logger.log("stderr:\n"+stderr)
+        Logger.log("stderr:\n{0}".format(stderr))
       return stdout.decode("utf-8"), stderr, p.returncode
     except subprocess.CalledProcessError as e:
       raise

@@ -13,12 +13,8 @@ class GotoolsOracleCommand(sublime_plugin.TextCommand):
     return GoBuffers.is_go_source(self.view)
 
   def run(self, edit, command=None):
-    self.settings = GoToolsSettings()
-    self.logger = Logger(self.settings)
-    self.runner = ToolRunner(self.settings, self.logger)
-
     if not command:
-      self.logger.log("command is required")
+      Logger.log("command is required")
       return
 
     filename, row, col, offset, offset_end = Buffers.location_at_cursor(self.view)
@@ -28,12 +24,12 @@ class GotoolsOracleCommand(sublime_plugin.TextCommand):
     # configured.
     # TODO: put into a utility
     package_scope = []
-    for p in self.settings.build_packages:
-      package_scope.append(os.path.join(self.settings.project_package, p))
-    for p in self.settings.test_packages:
-      package_scope.append(os.path.join(self.settings.project_package, p))
-    for p in self.settings.tagged_test_packages:
-      package_scope.append(os.path.join(self.settings.project_package, p))
+    for p in GoToolsSettings.Instance.build_packages:
+      package_scope.append(os.path.join(GoToolsSettings.Instance.project_package, p))
+    for p in GoToolsSettings.Instance.test_packages:
+      package_scope.append(os.path.join(GoToolsSettings.Instance.project_package, p))
+    for p in GoToolsSettings.Instance.tagged_test_packages:
+      package_scope.append(os.path.join(GoToolsSettings.Instance.project_package, p))
 
     sublime.active_window().run_command("hide_panel", {"panel": "output.gotools_oracle"})
 
@@ -56,17 +52,17 @@ class GotoolsOracleCommand(sublime_plugin.TextCommand):
       sublime.set_timeout_async(lambda: self.do_plain_oracle("referrers", pos, package_scope), 0)
 
   def do_plain_oracle(self, mode, pos, package_scope=[], regex="^(.*):(\d+):(\d+):(.*)$"):
-    self.logger.status("running oracle "+mode+"...")
+    Logger.status("running oracle "+mode+"...")
     args = ["-pos="+pos, "-format=plain", mode]
     if len(package_scope) > 0:
       args = args + package_scope
-    output, err, rc = self.runner.run("oracle", args, timeout=60)
-    self.logger.log("oracle "+mode+" output: " + output.rstrip())
+    output, err, rc = ToolRunner.run("oracle", args, timeout=60)
+    Logger.log("oracle "+mode+" output: " + output.rstrip())
 
     if rc != 0:
-      self.logger.status("oracle call failed (" + str(rc) +")")
+      Logger.status("oracle call failed (" + str(rc) +")")
       return
-    self.logger.status("oracle "+mode+" finished")
+    Logger.status("oracle "+mode+" finished")
 
     panel = self.view.window().create_output_panel('gotools_oracle')
     panel.set_scratch(True)
