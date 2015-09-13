@@ -28,7 +28,7 @@ class GotoolsGotoDef(sublime_plugin.TextCommand):
     else:
       filename, row, col, offset, offset_end = Buffers.location_at_cursor(self.view)
 
-    backend = GoToolsSettings.Instance.goto_def_backend if GoToolsSettings.Instance.goto_def_backend else ""
+    backend = GoToolsSettings.get().goto_def_backend if GoToolsSettings.get().goto_def_backend else ""
     try:
       if backend == "oracle":
         file, row, col = self.get_oracle_location(filename, offset)
@@ -61,12 +61,12 @@ class GotoolsGotoDef(sublime_plugin.TextCommand):
     # configured.
     # TODO: put into a utility
     package_scope = []
-    for p in GoToolsSettings.Instance.build_packages:
-      package_scope.append(os.path.join(GoToolsSettings.Instance.project_package, p))
-    for p in GoToolsSettings.Instance.test_packages:
-      package_scope.append(os.path.join(GoToolsSettings.Instance.project_package, p))
-    for p in GoToolsSettings.Instance.tagged_test_packages:
-      package_scope.append(os.path.join(GoToolsSettings.Instance.project_package, p))
+    for p in GoToolsSettings.get().build_packages:
+      package_scope.append(os.path.join(GoToolsSettings.get().project_package, p))
+    for p in GoToolsSettings.get().test_packages:
+      package_scope.append(os.path.join(GoToolsSettings.get().project_package, p))
+    for p in GoToolsSettings.get().tagged_test_packages:
+      package_scope.append(os.path.join(GoToolsSettings.get().project_package, p))
 
     if len(package_scope) > 0:
       args = args + package_scope

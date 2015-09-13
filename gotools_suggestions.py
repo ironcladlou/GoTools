@@ -19,10 +19,10 @@ class GotoolsSuggestions(sublime_plugin.EventListener):
 
   def on_query_completions(self, view, prefix, locations):
     if not GoBuffers.is_go_source(view): return
-    if not GoToolsSettings.Instance.autocomplete: return
+    if not GoToolsSettings.get().autocomplete: return
 
     # set the lib-path for gocode's lookups
-    _, _, rc = ToolRunner.run("gocode", ["set", "lib-path", GoToolsSettings.Instance.golibpath])
+    _, _, rc = ToolRunner.run("gocode", ["set", "lib-path", GoToolsSettings.get().golibpath])
 
     suggestionsJsonStr, stderr, rc = ToolRunner.run("gocode", ["-f=json", "autocomplete", 
       str(Buffers.offset_at_cursor(view)[0])], stdin=Buffers.buffer_text(view))

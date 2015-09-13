@@ -6,6 +6,9 @@
 
   "variants": [
     {
+      "name": "Build",
+    },
+    {
       "name": "Clean Build",
       "clean": true
     },
