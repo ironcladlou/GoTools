@@ -56,7 +56,7 @@ class GoBuffers():
 class Logger():
   @staticmethod
   def log(msg):
-    if GoToolsSettings.Instance.debug_enabled:
+    if GoToolsSettings.get().debug_enabled:
       print("GoTools: DEBUG: {0}".format(msg))
 
   @staticmethod
@@ -71,11 +71,11 @@ class ToolRunner():
   @staticmethod
   def run(tool, args=[], stdin=None, timeout=5):
     toolpath = None
-    searchpaths = list(map(lambda x: os.path.join(x, 'bin'), GoToolsSettings.Instance.gopath.split(os.pathsep)))
-    for p in GoToolsSettings.Instance.ospath.split(os.pathsep):
+    searchpaths = list(map(lambda x: os.path.join(x, 'bin'), GoToolsSettings.get().gopath.split(os.pathsep)))
+    for p in GoToolsSettings.get().ospath.split(os.pathsep):
       searchpaths.append(p)
-    searchpaths.append(os.path.join(GoToolsSettings.Instance.goroot, 'bin'))
-    searchpaths.append(GoToolsSettings.Instance.gorootbin)
+    searchpaths.append(os.path.join(GoToolsSettings.get().goroot, 'bin'))
+    searchpaths.append(GoToolsSettings.get().gorootbin)
 
     if platform.system() == "Windows":
       tool = tool + ".exe"
@@ -95,9 +95,9 @@ class ToolRunner():
       Logger.log("spawning process...")
 
       env = os.environ.copy()
-      env["PATH"] = GoToolsSettings.Instance.ospath
-      env["GOPATH"] = GoToolsSettings.Instance.gopath
-      env["GOROOT"] = GoToolsSettings.Instance.goroot
+      env["PATH"] = GoToolsSettings.get().ospath
+      env["GOPATH"] = GoToolsSettings.get().gopath
+      env["GOROOT"] = GoToolsSettings.get().goroot
 
       Logger.log("\tcommand:     " + " ".join(cmd))
       Logger.log("\tenvironment: " + str(env))

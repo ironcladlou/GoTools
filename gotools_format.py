@@ -11,7 +11,7 @@ from .gotools_settings import GoToolsSettings
 class GotoolsFormatOnSave(sublime_plugin.EventListener):
   def on_pre_save(self, view):
     if not GoBuffers.is_go_source(view): return
-    if not GoToolsSettings.Instance.format_on_save: return
+    if not GoToolsSettings.get().format_on_save: return
     view.run_command('gotools_format')
 
 class GotoolsFormat(sublime_plugin.TextCommand):
@@ -21,10 +21,10 @@ class GotoolsFormat(sublime_plugin.TextCommand):
   def run(self, edit):
     command = ""
     args = []
-    if GoToolsSettings.Instance.format_backend == "gofmt":
+    if GoToolsSettings.get().format_backend == "gofmt":
       command = "gofmt"
       args = ["-e", "-s"]
-    elif GoToolsSettings.Instance.format_backend in ["goimports", "both"] :
+    elif GoToolsSettings.get().format_backend in ["goimports", "both"] :
       command = "goimports"
       args = ["-e"]
 
@@ -43,7 +43,7 @@ class GotoolsFormat(sublime_plugin.TextCommand):
       Logger.log("unknown gofmt error (" + str(rc) + ") stderr:\n" + stderr)
       return
 
-    if GoToolsSettings.Instance.format_backend == "both":
+    if GoToolsSettings.get().format_backend == "both":
       command = "gofmt"
       args = ["-e", "-s"]
       stdout, stderr, rc = self.runner.run(command, args, stdin=stdout.encode('utf-8'))

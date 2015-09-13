@@ -4,25 +4,14 @@ import platform
 import re
 import subprocess
 import tempfile
-
-def plugin_loaded():
-  # This is the plugin initialization, which loads required environment
-  # variables. If this fails, the plugin is basically broken.
-  #
-  # TODO: find a better way to inform the user of problems.
-  try:
-    print("GoTools: initializing plugin...")
-    GoToolsSettings.Instance = GoToolsSettings()
-    print("GoTools: successfully initialized plugin.")
-  except Exception as e:
-    print("GoTools: ERROR: failed to initialize the plugin: {0}".format(str(e)))
-    raise e
+import threading
 
 class GoToolsSettings():
-  Instance = None
+  lock = threading.Lock()
+  instance = None
 
   def __init__(self):
-    # Only load the environment once per plugin init.
+    # Only load the environment once.
     # TODO: Consider doing this during refresh. Environment shouldn't change
     # often and the call can be slow if the login shell has a nontrivial
     # amount of init (e.g. bashrc).
@@ -31,6 +20,20 @@ class GoToolsSettings():
     self.refresh()
     # Only refresh plugin settings when they have changed.
     self.plugin_settings.add_on_change("gopath", self.refresh)
+
+  @staticmethod
+  def get():
+    GoToolsSettings.lock.acquire()
+    try:
+      if GoToolsSettings.instance is None:
+        print("GoTools: initializing settings...")
+        GoToolsSettings.instance = GoToolsSettings()
+        print("GoTools: successfully initialized settings")
+    except Exception as e:
+      print("GoTools: ERROR: failed to initialize settings: {0}".format(str(e)))
+    finally:
+      GoToolsSettings.lock.release()
+    return GoToolsSettings.instance
 
   # There's no direct access to project settings, so load them from the active
   # view every time. This doesn't seem ideal.
@@ -105,7 +108,7 @@ class GoToolsSettings():
     libpath = []
     arch = "{0}_{1}".format(self.goos, self.goarch)
     libpath.append(os.path.join(self.goroot, "pkg", self.gohostosarch))
-    for p in GoToolsSettings.Instance.gopath.split(":"):
+    for p in self.gopath.split(":"):
       libpath.append(os.path.join(p, "pkg", arch))
     return ":".join(libpath)
 
