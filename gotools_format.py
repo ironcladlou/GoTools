@@ -11,11 +11,7 @@ from .gotools_settings import GoToolsSettings
 class GotoolsFormatOnSave(sublime_plugin.EventListener):
   def on_pre_save(self, view):
     if not GoBuffers.is_go_source(view): return
-
-    settings = GoToolsSettings()
-    if not settings.format_on_save:
-      return
-
+    if not GoToolsSettings.Instance.format_on_save: return
     view.run_command('gotools_format')
 
 class GotoolsFormat(sublime_plugin.TextCommand):
@@ -23,20 +19,16 @@ class GotoolsFormat(sublime_plugin.TextCommand):
     return GoBuffers.is_go_source(self.view)
 
   def run(self, edit):
-    self.settings = GoToolsSettings()
-    self.logger = Logger(self.settings)
-    self.runner = ToolRunner(self.settings, self.logger)
-
     command = ""
     args = []
-    if self.settings.format_backend == "gofmt":
+    if GoToolsSettings.Instance.format_backend == "gofmt":
       command = "gofmt"
       args = ["-e", "-s"]
-    elif self.settings.format_backend in ["goimports", "both"] :
+    elif GoToolsSettings.Instance.format_backend in ["goimports", "both"] :
       command = "goimports"
       args = ["-e"]
 
-    stdout, stderr, rc = self.runner.run(command, args, stdin=Buffers.buffer_text(self.view))
+    stdout, stderr, rc = ToolRunner.run(command, args, stdin=Buffers.buffer_text(self.view))
 
     # Clear previous syntax error marks
     self.view.erase_regions("mark")
@@ -48,10 +40,10 @@ class GotoolsFormat(sublime_plugin.TextCommand):
 
     if rc != 0:
       # Ermmm...
-      self.logger.log("unknown gofmt error (" + str(rc) + ") stderr:\n" + stderr)
+      Logger.log("unknown gofmt error (" + str(rc) + ") stderr:\n" + stderr)
       return
 
-    if self.settings.format_backend == "both":
+    if GoToolsSettings.Instance.format_backend == "both":
       command = "gofmt"
       args = ["-e", "-s"]
       stdout, stderr, rc = self.runner.run(command, args, stdin=stdout.encode('utf-8'))
@@ -66,7 +58,7 @@ class GotoolsFormat(sublime_plugin.TextCommand):
 
     if rc != 0:
       # Ermmm...
-      self.logger.log("unknown gofmt error (" + str(rc) + ") stderr:\n" + stderr)
+      Logger.log("unknown gofmt error (" + str(rc) + ") stderr:\n" + stderr)
       return
 
     # Everything's good, hide the syntax error panel
@@ -101,12 +93,12 @@ class GotoolsFormat(sublime_plugin.TextCommand):
     for error in stderr.splitlines():
       match = re.match("(.*):(\d+):(\d+):", error)
       if not match or not match.group(2):
-        self.logger.log("skipping unrecognizable error:\n" + error + "\nmatch:" + str(match))
+        Logger.log("skipping unrecognizable error:\n" + error + "\nmatch:" + str(match))
         continue
 
       row = int(match.group(2))
       pt = self.view.text_point(row-1, 0)
-      self.logger.log("adding mark at row " + str(row))
+      Logger.log("adding mark at row " + str(row))
       marks.append(sublime.Region(pt))
 
     if len(marks) > 0:
