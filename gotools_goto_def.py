@@ -77,9 +77,8 @@ class GotoolsGotoDef(sublime_plugin.TextCommand):
 
     Logger.log("oracle output:\n" + location.rstrip())
 
-    # godef is sometimes returning this junk as part of the output,
-    # so just cut anything prior to the first path separator
-    location = json.loads(location.rstrip())['definition']['objpos'].split(":")
+    # cut anything prior to the first path separator
+    location = json.loads(location.rstrip())['definition']['objpos'].rsplit(":", 2)
 
     if len(location) != 3:
       raise Exception("no definition found")
@@ -99,7 +98,7 @@ class GotoolsGotoDef(sublime_plugin.TextCommand):
 
     # godef is sometimes returning this junk as part of the output,
     # so just cut anything prior to the first path separator
-    location = location.rstrip()[location.find('/'):].split(":")
+    location = location.rstrip().rsplit(":", 2)
 
     if len(location) != 3:
       raise Exception("no definition found")
