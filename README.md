@@ -78,7 +78,7 @@ Here's an example `sublime-mousemap` entry which will go to a definition using `
 {"button": "button1", "count": 1, "modifiers": ["ctrl"], "command": "gotools_goto_def"}
 ```
 
-By default [oracle](https://godoc.org/golang.org/x/tools/oracle) is used for definition support. To change the backend, set `goto_def_backend` in your [GoTools settings](GoTools.sublime-settings).
+By default [godef](https://github.com/rogpeppe/godef) is used for definition support. To change the backend, set `goto_def_backend` in your [GoTools settings](GoTools.sublime-settings).
 
 #### Autocomplete
 
