@@ -14,7 +14,7 @@
   "format_backend": "gofmt",
 
   // A go-to-definition backend (must be either 'oracle' or 'godef').
-  "goto_def_backend": "oracle",
+  "goto_def_backend": "godef",
 
   // Enable gocode autocompletion.
   "autocomplete": true,
