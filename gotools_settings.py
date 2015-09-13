@@ -30,7 +30,7 @@ class GoToolsSettings():
         GoToolsSettings.instance = GoToolsSettings()
         print("GoTools: successfully initialized settings")
     except Exception as e:
-      print("GoTools: ERROR: failed to initialize settings: {0}".format(str(e)))
+      raise Exception("GoTools: ERROR: failed to initialize settings: {0}".format(str(e)))
     finally:
       GoToolsSettings.lock.release()
     return GoToolsSettings.instance
