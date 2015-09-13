@@ -209,7 +209,7 @@ class GoToolsSettings():
     for k in env:
       cmdenv[k] = env[k]
     goenv, stderr = subprocess.Popen([gobinary, 'env'], 
-      stdout=subprocess.PIPE, stderr=subprocess.PIPE, startupinfo=si, env=cmdenv).communicate()
+      stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE, startupinfo=si, env=cmdenv).communicate()
     if stderr and len(stderr) > 0:
       raise Exception("'{0} env' returned an error: {1}".format(gobinary, stderr.decode()))
 
