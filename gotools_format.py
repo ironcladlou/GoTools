@@ -46,7 +46,7 @@ class GotoolsFormat(sublime_plugin.TextCommand):
     if GoToolsSettings.get().format_backend == "both":
       command = "gofmt"
       args = ["-e", "-s"]
-      stdout, stderr, rc = self.runner.run(command, args, stdin=stdout.encode('utf-8'))
+      stdout, stderr, rc = ToolRunner.run(command, args, stdin=stdout.encode('utf-8'))
 
     # Clear previous syntax error marks
     self.view.erase_regions("mark")
