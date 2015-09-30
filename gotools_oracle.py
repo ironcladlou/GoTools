@@ -45,7 +45,7 @@ class GotoolsOracleCommand(sublime_plugin.TextCommand):
       pos = filename+":#"+str(offset)+","+"#"+str(offset_end)
       sublime.set_timeout_async(lambda: self.do_plain_oracle("freevars", pos, package_scope), 0)
     if command == "implements":
-      sublime.set_timeout_async(lambda: self.do_plain_oracle("implements", pos), 0)
+      sublime.set_timeout_async(lambda: self.do_plain_oracle("implements", pos, package_scope), 0)
     if command == "peers":
       sublime.set_timeout_async(lambda: self.do_plain_oracle("peers", pos, package_scope), 0)
     if command == "referrers":
