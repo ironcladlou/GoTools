@@ -335,6 +335,22 @@ class GotoolsExecCommand(sublime_plugin.WindowCommand, ProcessListener):
 
 class GotoolsBuildCommand(GotoolsExecCommand):
   Callbacks = {}
+  LastExecOpts = None
+
+  def run_exec(self, exec_opts):
+    super(GotoolsBuildCommand, self).run(
+      cmd=exec_opts["cmd"],
+      shell_cmd=exec_opts["shell_cmd"],
+      file_regex=exec_opts["file_regex"],
+      line_regex=exec_opts["line_regex"],
+      working_dir=exec_opts["working_dir"],
+      encoding=exec_opts["encoding"],
+      env=exec_opts["env"],
+      quiet=exec_opts["quiet"],
+      kill=exec_opts["kill"],
+      word_wrap=exec_opts["word_wrap"],
+      syntax=exec_opts["syntax"]
+    )
 
   def run(self, cmd = None, shell_cmd = None, file_regex = "", line_regex = "", working_dir = "",
           encoding = "utf-8", env = {}, quiet = False, kill = False,
@@ -382,8 +398,9 @@ class GotoolsBuildCommand(GotoolsExecCommand):
     elif task == "test_current_package":
       self.test_current_package(exec_opts)
     elif task == "test_last":
-      Logger.log("re-running last test")
-      self.window.run_command("exec", self.last_test_exec_opts)
+      if GotoolsBuildCommand.LastExecOpts:
+        Logger.log("re-running last test")
+        self.run_exec(GotoolsBuildCommand.LastExecOpts)
     else:
       Logger.log("invalid task: " + task)
 
@@ -398,21 +415,6 @@ class GotoolsBuildCommand(GotoolsExecCommand):
         except Exception as e:
           Logger.log("WARNING: couldn't clean directory: " + str(e))
 
-  def default_run(self, exec_opts):
-    super(GotoolsBuildCommand, self).run(
-      cmd=exec_opts["cmd"],
-      shell_cmd=exec_opts["shell_cmd"],
-      file_regex=exec_opts["file_regex"],
-      line_regex=exec_opts["line_regex"],
-      working_dir=exec_opts["working_dir"],
-      encoding=exec_opts["encoding"],
-      env=exec_opts["env"],
-      quiet=exec_opts["quiet"],
-      kill=exec_opts["kill"],
-      word_wrap=exec_opts["word_wrap"],
-      syntax=exec_opts["syntax"]
-    )
-
   def build(self, exec_opts):
     build_packages = []
     for p in GoToolsSettings.get().build_packages:
@@ -423,7 +425,7 @@ class GotoolsBuildCommand(GotoolsExecCommand):
     go = GoToolsSettings.get().find_go_binary(GoToolsSettings.get().ospath)
     exec_opts["cmd"] = [go, "install"] + build_packages
 
-    self.default_run(exec_opts)
+    self.run_exec(exec_opts)
   
   def finish(self, proc):
     super(GotoolsBuildCommand, self).finish(proc)
@@ -470,9 +472,9 @@ class GotoolsBuildCommand(GotoolsExecCommand):
 
     # Cache the execution for easy recall
     if remember:
-      self.last_test_exec_opts = exec_opts
+      GotoolsBuildCommand.LastExecOpts = exec_opts
 
-    self.default_run(exec_opts)
+    self.run_exec(exec_opts)
 
   def test_current_package(self, exec_opts):
     Logger.log("running current package tests")

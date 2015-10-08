@@ -68,10 +68,31 @@
     }
   },
   {
+    "caption": "GoTools: Debugger: Debug test at cursor",
+    "command": "gotools_debug",
+    "args": {
+      "command": "debug_test_at_cursor"
+    }
+  },
+  {
     "caption": "GoTools: Debugger: Add breakpoint",
     "command": "gotools_debug",
     "args": {
       "command": "add_breakpoint"
+    }
+  },
+  {
+    "caption": "GoTools: Debugger: Clear breakpoint",
+    "command": "gotools_debug",
+    "args": {
+      "command": "clear_breakpoint"
+    }
+  },
+  {
+    "caption": "GoTools: Debugger: Continue",
+    "command": "gotools_debug",
+    "args": {
+      "command": "continue"
     }
   }
 ]

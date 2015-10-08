@@ -12,6 +12,7 @@ import uuid
 import socket
 import subprocess
 import time
+import itertools
 
 from .gotools_util import Buffers
 from .gotools_util import GoBuffers
@@ -20,52 +21,83 @@ from .gotools_util import ToolRunner
 from .gotools_settings import GoToolsSettings
 from .gotools_build import GotoolsBuildCommand
 
+class JSONClient(object):
+  def __init__(self, addr):
+    self.socket = socket.create_connection(addr)
+    self.id_counter = itertools.count()
+
+  def __del__(self):
+    if self.socket:
+      self.socket.close()
+
+  def call(self, name, *params):
+    request = dict(id=next(self.id_counter),
+                params=list(params),
+                method=name)
+    self.socket.sendall(json.dumps(request).encode())
+
+    # This must loop if resp is bigger than 4K
+    response = self.socket.recv(4096)
+    response = json.loads(response.decode())
+
+    if response.get('id') != request.get('id'):
+      raise Exception("expected id=%s, received id=%s: %s"
+                      %(request.get('id'), response.get('id'),
+                        response.get('error')))
+
+    if response.get('error') is not None:
+      raise Exception(response.get('error'))
+
+    return response.get('result')
+
 class DebuggingSession:
   def __init__(self, session_key, session):
+    self._rpc = None
     self.session_key = session_key
     self.pid = session["pid"]
     self.host = session["host"]
     self.port = session["port"]
     self.addr = session["addr"]
 
+  @property
+  def rpc(self):
+    if self._rpc:
+      return self._rpc
+    self._rpc = JSONClient((self.host, self.port))
+    return self._rpc
+
   def add_breakpoint(self, filename, line):
-    s = socket.create_connection((self.host, self.port))
-    s.sendall(json.dumps({'file': filename, 'line': line}).encode())
-    response = s.recv(4096)
-    response = json.loads(response.decode())
-    s.close()
-    Logger.log("got response: {0}".format(response))
+    breakpoint = {
+      "file": filename,
+      "line": line,
+    }
+    self.rpc.call("RPCServer.CreateBreakpoint", breakpoint)
+    Logger.log("created breakpoint: {0}".format(breakpoint))
+    Logger.log("current breakpoints: {0}".format(self.get_breakpoints()))
 
   def get_breakpoints(self):
-    conn = http.client.HTTPConnection(self.addr)
-    conn.request('GET', '/breakpoints', headers={'Accept': 'application/json'})
-    response = conn.getresponse()
-    response_str = response.read().decode()
-    conn.close()
-    if response.status != 200:
-      raise Exception("couldn't get breakpoints: reason={0}; response={1}".format(response.reason, response_str))
-    return json.loads(response_str)
+    return self.rpc.call("RPCServer.ListBreakpoints")
 
-  def delete_breakpoint(self, filename, line):
+  def clear_breakpoint(self, filename, line):
     bps = self.get_breakpoints()
     found = None
     for bp in bps:
       if bp['file'] == filename and bp['line'] == line:
         found = bp
         break
-
     if not found:
-      Logger.log("no breakpoint found at {0}:{1}".format(line, row))
+      Logger.log("no breakpoint found at {0}:{1}".format(filename, line))
       return
+    self.rpc.call("RPCServer.ClearBreakpoint", bp["id"])
+    Logger.log("cleared breakpoint '{0}' at {1}:{2}".format(bp["id"], filename, line))
+    Logger.log("current breakpoints: {0}".format(self.get_breakpoints()))
 
-    conn = http.client.HTTPConnection(GotoolsDebugCommand.DEBUGGER_ADDR)
-    conn.request('DELETE', "/breakpoints/{0}".format(bp['id']), headers={'Accept': 'application/json'})
-    response = conn.getresponse()
-    response_str = response.read().decode()
-    conn.close()
-
-    if response.status != 200:
-      raise Exception("couldn't clear breakpoint: reason={0}; response={1}".format(response.reason, response_str))
+  def cont(self):
+    command = {
+      "name": "continue"
+    }
+    state = self.rpc.call("RPCServer.Command", command)
+    Logger.log("breakpoint reached; state: {0}".format(state))
 
 class GotoolsDebugCommand(sublime_plugin.WindowCommand):
   ActiveSession = None
@@ -77,8 +109,8 @@ class GotoolsDebugCommand(sublime_plugin.WindowCommand):
     
     if command == "add_breakpoint":
       self.add_breakpoint()
-    elif command == "delete_breakpoint":
-      self.delete_breakpoint()
+    elif command == "clear_breakpoint":
+      self.clear_breakpoint()
     elif command == "continue":
       self.cont()
       #sublime.set_timeout_async(lambda: self.cont(), 0)
@@ -153,19 +185,25 @@ class GotoolsDebugCommand(sublime_plugin.WindowCommand):
 
     Logger.log("stopping session: {0}".format(session))
     pid = session["pid"]
-    try:
+    sessions.pop(session_key, None)
+    self.window.settings().set("gotools.debugger.sessions", sessions)
+    try:  
       os.kill(pid, signal.SIGKILL)
       os.waitpid(pid, os.WNOHANG)
-      sessions.pop(session_key, None)
-      self.window.settings().set("gotools.debugger.sessions", sessions)
-      Logger.log("killed {0} and deleted session {1}".format(pid, session_key))
+      Logger.log("killed pid {0} for debugging session {1}".format(pid, session_key))
     except Exception as e:
-      Logger.log("couldn't kill session pid {0}: {1}".format(pid, e))
+      Logger.log("warning: couldn't kill pid {0} debugging session pid {1}: {2}".format(pid, session_key, e))
+    Logger.log("deleted session {0}".format(session_key))
 
   def stop_active_session(self):
     if GotoolsDebugCommand.ActiveSession is None:
+      Logger.log("no debugging session is active")
       return
-    self.stop(GotoolsDebugCommand.ActiveSession.session_key)
+    try:
+      self.stop(GotoolsDebugCommand.ActiveSession.session_key)
+      GotoolsDebugCommand.ActiveSession = None
+    except Exception as e:
+      Logger.log("couldn't stop active session: {0}".format(e))
 
   def attach(self, session_key):
     sessions = self.window.settings().get("gotools.debugger.sessions", {})
@@ -174,36 +212,19 @@ class GotoolsDebugCommand(sublime_plugin.WindowCommand):
       return
     session = sessions[session_key]
 
+    # TODO: this isn't available right away, need to make the connection retry
     GotoolsDebugCommand.ActiveSession = DebuggingSession(session_key, session)
     Logger.log("debugger attached to session: {0}".format(session))
-
-  def read_debugger_log(self):
-    Logger.log("started reading debugger log")
-
-    output_view = sublime.active_window().create_output_panel('gotools_debug_log')
-    output_view.set_scratch(True)
-    output_view.run_command("select_all")
-    output_view.run_command("right_delete")
-    sublime.active_window().run_command("show_panel", {"panel": "output.gotools_debug_log"})
-
-    reason = "<eof>"
-    try:
-      for line in GotoolsDebugCommand.Process.stdout:
-        output_view.run_command('append', {'characters': line})
-    except Exception as err:
-      reason = err
-
-    Logger.log("finished reading debuger log (closed: "+ reason +")")
 
   def add_breakpoint(self):
     view = self.window.active_view()
     filename, row, _col, offset, _offset_end = Buffers.location_at_cursor(view)
     GotoolsDebugCommand.ActiveSession.add_breakpoint(filename, row)
 
-  def delete_breakpoint(self):
+  def clear_breakpoint(self):
     view = self.window.active_view()
     filename, row, _col, offset, _offset_end = Buffers.location_at_cursor(view)
-    GotoolsDebugCommand.ActiveSession.delete_breakpoint(filename, row)
+    GotoolsDebugCommand.ActiveSession.clear_breakpoint(filename, row)
 
   def sync_breakpoints(self):
     bps = self.get_breakpoints()
@@ -222,6 +243,9 @@ class GotoolsDebugCommand(sublime_plugin.WindowCommand):
       view.add_regions("breakpoint", marks, "mark", "circle", sublime.PERSISTENT)
 
   def cont(self):
+    GotoolsDebugCommand.ActiveSession.cont()
+
+  def cont_old(self):
     conn = http.client.HTTPConnection(GotoolsDebugCommand.DEBUGGER_ADDR)
     headers = {'Content-type': 'application/json'}
     cmd_json = json.dumps({'Name': "continue"})
@@ -262,3 +286,21 @@ class GotoolsDebugCommand(sublime_plugin.WindowCommand):
       view.add_regions("continue", marks, "mark", "bookmark", sublime.PERSISTENT)
 
     sublime.set_timeout(lambda: self.show_location(view, line), 0)
+
+  def read_debugger_log(self):
+    Logger.log("started reading debugger log")
+
+    output_view = sublime.active_window().create_output_panel('gotools_debug_log')
+    output_view.set_scratch(True)
+    output_view.run_command("select_all")
+    output_view.run_command("right_delete")
+    sublime.active_window().run_command("show_panel", {"panel": "output.gotools_debug_log"})
+
+    reason = "<eof>"
+    try:
+      for line in GotoolsDebugCommand.Process.stdout:
+        output_view.run_command('append', {'characters': line})
+    except Exception as err:
+      reason = err
+
+    Logger.log("finished reading debuger log (closed: "+ reason +")")
