@@ -70,6 +70,22 @@ class Logger():
 class ToolRunner():
   @staticmethod
   def run(tool, args=[], stdin=None, timeout=5):
+    try:
+      p = ToolRunner.run_nonblock(tool, args, stdin, timeout)
+      start = time.time()
+      stdout, stderr = p.communicate(input=stdin, timeout=timeout)
+      p.wait(timeout=timeout)
+      elapsed = round(time.time() - start)
+      Logger.log("process returned ({0}) in {1} seconds".format(str(p.returncode), str(elapsed)))
+      stderr = stderr.decode("utf-8")
+      if len(stderr) > 0:
+        Logger.log("stderr:\n{0}".format(stderr))
+      return stdout.decode("utf-8"), stderr, p.returncode
+    except subprocess.CalledProcessError as e:
+      raise
+
+  @staticmethod
+  def run_nonblock(tool, args=[], stdin=None, timeout=5):
     toolpath = None
     searchpaths = list(map(lambda x: os.path.join(x, 'bin'), GoToolsSettings.get().gopath.split(os.pathsep)))
     for p in GoToolsSettings.get().ospath.split(os.pathsep):
@@ -107,16 +123,6 @@ class ToolRunner():
       if platform.system() == "Windows":
         si = subprocess.STARTUPINFO()
         si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-
-      start = time.time()
-      p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, startupinfo=si)
-      stdout, stderr = p.communicate(input=stdin, timeout=timeout)
-      p.wait(timeout=timeout)
-      elapsed = round(time.time() - start)
-      Logger.log("process returned ({0}) in {1} seconds".format(str(p.returncode), str(elapsed)))
-      stderr = stderr.decode("utf-8")
-      if len(stderr) > 0:
-        Logger.log("stderr:\n{0}".format(stderr))
-      return stdout.decode("utf-8"), stderr, p.returncode
+      return subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, startupinfo=si)
     except subprocess.CalledProcessError as e:
       raise

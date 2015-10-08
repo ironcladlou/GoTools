@@ -66,5 +66,12 @@
     "args": {
       "command": "referrers"
     }
+  },
+  {
+    "caption": "GoTools: Debugger: Add breakpoint",
+    "command": "gotools_debug",
+    "args": {
+      "command": "add_breakpoint"
+    }
   }
 ]
