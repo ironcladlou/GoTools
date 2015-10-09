@@ -94,5 +94,19 @@
     "args": {
       "command": "continue"
     }
+  },
+  {
+    "caption": "GoTools: Debugger: Switch session",
+    "command": "gotools_debug",
+    "args": {
+      "command": "switch_session"
+    }
+  },
+  {
+    "caption": "GoTools: Debugger: Stop active session",
+    "command": "gotools_debug",
+    "args": {
+      "command": "stop_active_session"
+    }
   }
 ]
