@@ -39,7 +39,7 @@ class JSONClient(object):
     self.socket.sendall(json.dumps(request).encode())
 
     # This must loop if resp is bigger than 4K
-    response = self.socket.recv(4096)
+    response = self.socket.recv(104096)
     response = json.loads(response.decode())
 
     if response.get('id') != request.get('id'):
@@ -169,6 +169,17 @@ class DebuggingSession:
     del self.breakpoints[found]
     self.sync()
 
+  def toggle_breakpoint(self, filename, line):
+    found = False
+    for breakpoint in self.breakpoints:
+      if breakpoint['file'] == filename and breakpoint['line'] == int(line):
+        found = True
+        break
+    if found:
+      self.clear_breakpoint(filename, line)
+    else:
+      self.add_breakpoint(filename, line)
+
   def cont(self):
     if not self.connected:
       Logger.log("can't continue debugger because the session is disconnected")
@@ -201,6 +212,9 @@ class GotoolsDebugCommand(sublime_plugin.WindowCommand):
     finally:
       GotoolsDebugCommand.lock.release()
 
+  def make_session_key(self):
+    return uuid.uuid4().hex[0:10]
+
   def run(self, command=None, args={}):
     if not command:
       Logger.log("command is required")
@@ -210,6 +224,8 @@ class GotoolsDebugCommand(sublime_plugin.WindowCommand):
       self.add_breakpoint()
     elif command == "clear_breakpoint":
       self.clear_breakpoint()
+    elif command == "toggle_breakpoint":
+      self.toggle_breakpoint()
     elif command == "continue":
       sublime.set_timeout_async(lambda: self.cont(), 0)
     elif command == "stop":
@@ -219,6 +235,8 @@ class GotoolsDebugCommand(sublime_plugin.WindowCommand):
       self.stop_active_session()
     elif command == "debug_test_at_cursor":
       self.debug_test_at_cursor()
+    elif command == "debug_command":
+      self.debug_command(args)
     elif command == "switch_session":
       self.switch_session()
     else:
@@ -248,20 +266,27 @@ class GotoolsDebugCommand(sublime_plugin.WindowCommand):
         Logger.log("no function found near cursor")
         return
 
-      session_key = uuid.uuid4().hex[0:10]
-      program = os.path.join(os.path.expanduser('~'), ".gotools-debug-{0}".format(session_key))
-      GotoolsBuildCommand.Callbacks[session_key] = lambda: self.launch(program=program, key=session_key, desc=func_name)
-      Logger.log("building {0} for debugging session {1}".format(program, session_key))
-      self.window.run_command("gotools_build",{"task": "test_at_cursor", "build_test_binary": program, "build_id": session_key})
+      session_key = self.make_session_key()
+      command = os.path.join(os.path.expanduser('~'), ".gotools-debug-{0}".format(session_key))
+      GotoolsBuildCommand.Callbacks[session_key] = lambda: self.launch(command=command, key=session_key, desc=func_name)
+      Logger.log("building {0} for debugging session {1}".format(command, session_key))
+      self.window.run_command("gotools_build",{"task": "test_at_cursor", "build_test_binary": command, "build_id": session_key})
 
-  def launch(self, program, key=None, desc="Default"):
+  def debug_command(self, args):
     with self.debug_lock():
-      if not os.path.isfile(program):
-        Logger.log("build completed but {0} doesn't exist".format(program))
+      command = args["command"]
+      command_args = args["args"]
+      Logger.log("debugging command: {0} {1}".format(command, " ".join(command_args)))
+      self.launch(command=args["command"], args=command_args)
+
+  def launch(self, command, args=[], key=None, desc="Default"):
+    with self.debug_lock():
+      if not os.path.isfile(command):
+        Logger.log("command `{0}` doesn't exist".format(command))
         return
       # generate a key for the session
       if not key:
-        key = uuid.uuid4().hex[0:10]
+        key = self.make_session_key()
       # find a port for the debugger (binding to :0 and parsing the log would be
       # better, but this is less work and good enough for now)
       s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -272,12 +297,12 @@ class GotoolsDebugCommand(sublime_plugin.WindowCommand):
       host = "localhost"
       addr = "{0}:{1}".format(host, port)
 
-      proc = ToolRunner.run_nonblock("dlv", ["--headless=true", "--listen={0}".format(addr), "exec", program])
+      proc = ToolRunner.run_nonblock("dlv", ["--headless=true", "--listen={0}".format(addr), "exec", command]+args)
       #stdout, stderr = proc.communicate(timeout=5)
       #Logger.log("delve stdout:\n{1}\nstderr:\n{1}".format(stdout.decode(), stderr.decode()))
       sessions = self.window.settings().get("gotools.debugger.sessions", {})
       sessions[key] = {
-        "program": program,
+        "command": command,
         "pid": proc.pid,
         "host": host,
         "port": port,
@@ -340,14 +365,20 @@ class GotoolsDebugCommand(sublime_plugin.WindowCommand):
   def add_breakpoint(self):
     view = self.window.active_view()
     filename, row, _col, offset, _offset_end = Buffers.location_at_cursor(view)
-    GotoolsDebugCommand.ActiveSession.add_breakpoint(filename, row)
+    GotoolsDebugCommand.ActiveSession.add_breakpoint(filename, row+1)
     self.sync_views()
 
   def clear_breakpoint(self):
     view = self.window.active_view()
     filename, row, _col, offset, _offset_end = Buffers.location_at_cursor(view)
     Logger.log("clearing breakpoint from {0}:{1}".format(filename, row))
-    GotoolsDebugCommand.ActiveSession.clear_breakpoint(filename, row)
+    GotoolsDebugCommand.ActiveSession.clear_breakpoint(filename, row+1)
+    self.sync_views()
+
+  def toggle_breakpoint(self):
+    view = self.window.active_view()
+    filename, row, _col, offset, _offset_end = Buffers.location_at_cursor(view)
+    GotoolsDebugCommand.ActiveSession.toggle_breakpoint(filename, row+1)
     self.sync_views()
 
   def cont(self):
@@ -393,13 +424,13 @@ class GotoolsDebugCommand(sublime_plugin.WindowCommand):
           # Don't render a normal breakpoint mark for the current breakpoint
           if currentBreakpoint and breakpoint["id"] == currentBreakpoint["id"]:
             continue
-          pt = view.text_point(breakpoint["line"], 0)
+          pt = view.text_point(breakpoint["line"]-1, 0)
           breakpointMarks.append(sublime.Region(pt))
       if len(breakpointMarks) > 0:
         view.add_regions("gotools.breakpoints", breakpointMarks, "mark", "circle", sublime.PERSISTENT)
       # Sync the current breakpoint
       if currentBreakpoint and currentBreakpoint['file'] == view.file_name() and not session.state["exited"]:
-        pt = view.text_point(currentBreakpoint["line"], 0)
+        pt = view.text_point(currentBreakpoint["line"]-1, 0)
         view.add_regions("gotools.currentLine", [sublime.Region(pt)], "mark", "bookmark", sublime.PERSISTENT)
     # Sync locals output
     panel = self.window.create_output_panel('gotools.debug.session')

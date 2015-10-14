@@ -453,14 +453,14 @@ class GotoolsBuildCommand(GotoolsExecCommand):
     if GoToolsSettings.get().verbose_tests:
       cmd.append("-v")
 
-    if build_test_binary != None:
+    if build_test_binary:
       if len(packages) > 1:
         Logger.log("can't build a test binary from multiple packages: {0}".format(packages))
         return
       cmd += ["-c", "-o", build_test_binary]
       remember = False
 
-    if GoToolsSettings.get().test_timeout:
+    if GoToolsSettings.get().test_timeout and not build_test_binary:
       cmd += ["-timeout", GoToolsSettings.get().test_timeout]
 
     cmd += packages
