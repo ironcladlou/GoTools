@@ -6,8 +6,10 @@ import re
 import shutil
 import tempfile
 import http
+import pprint
 import json
 import signal
+import string
 import uuid
 import socket
 import subprocess
@@ -99,13 +101,15 @@ class DebuggingSession:
           "Depth": 100
           })
         for i, frame in enumerate(frames):
-          Logger.log("frame {0}: {1}".format(i, frame))
-          localVars = self.rpc.call("RPCServer.ListLocalVars", {
-            "GoroutineID": self.state["currentGoroutine"]["id"],
-            "Frame": i
-            })
-          frame["locals"] = localVars
-          Logger.log("locals: {0}".format(localVars))
+          Logger.log("getting vars for frame {0}: {1}".format(i, frame))
+          frame["locals"] = []
+          for func in ["RPCServer.ListLocalVars", "RPCServer.ListFunctionArgs"]:
+            variables = self.rpc.call(func, {
+              "GoroutineID": self.state["currentGoroutine"]["id"],
+              "Frame": i
+              })
+            frame["locals"] += variables
+            Logger.log("locals for frame: {0}".format(variables))
         self.state["frames"] = frames
     else:
       Logger.log("debugged process suspended: {0}".format(self.state))
@@ -399,25 +403,28 @@ class GotoolsDebugCommand(sublime_plugin.WindowCommand):
 
   def sync_views(self):
     session = GotoolsDebugCommand.ActiveSession
+    # Reset the view state
+    panel = self.window.create_output_panel('gotools.debug.session')
+    panel.settings().set("result_file_regex", '\((.*):(\d+)\)$')
+    panel.run_command("select_all")
+    panel.run_command("right_delete")
+    for view in self.window.views():
+      view.erase_regions("gotools.breakpoints")
+      view.erase_regions("gotools.currentLine")
+
+    # Bail early if there's no session
     if not session:
-      for view in self.window.views():
-        view.erase_regions("gotools.breakpoints")
-        view.erase_regions("gotools.currentLine")
-      panel = self.window.create_output_panel('gotools.debug.session')
-      panel.run_command("select_all")
-      panel.run_command("right_delete")
       panel.run_command('append', {'characters': "<no active debugging session>"})
       return
+
     # Find any current breakpoint
     currentBreakpoint = None
     if "breakPoint" in session.state:
       currentBreakpoint = session.state["breakPoint"]
-    # Sync break and continue markers
+
+    # Render break and continue markers
     for view in self.window.views():
-      # Start with a clean view
-      view.erase_regions("gotools.breakpoints")
-      view.erase_regions("gotools.currentLine")
-      # Sync breakpoints
+      # Render all breakpoints
       breakpointMarks = []
       for breakpoint in session.breakpoints:
         if breakpoint['file'] == view.file_name():
@@ -428,19 +435,17 @@ class GotoolsDebugCommand(sublime_plugin.WindowCommand):
           breakpointMarks.append(sublime.Region(pt))
       if len(breakpointMarks) > 0:
         view.add_regions("gotools.breakpoints", breakpointMarks, "mark", "circle", sublime.PERSISTENT)
-      # Sync the current breakpoint
+      # Render the current breakpoint (if available)
       if currentBreakpoint and currentBreakpoint['file'] == view.file_name() and not session.state["exited"]:
         pt = view.text_point(currentBreakpoint["line"]-1, 0)
         view.add_regions("gotools.currentLine", [sublime.Region(pt)], "mark", "bookmark", sublime.PERSISTENT)
-    # Sync locals output
-    panel = self.window.create_output_panel('gotools.debug.session')
-    panel.settings().set("result_file_regex", '\((.*):(\d+)\)$')
-    panel.run_command("select_all")
-    panel.run_command("right_delete")
 
+    # Determine the connected status
     connection_status = "[DISCONNECTED]"
     if session.connected:
       connection_status = "[CONNECTED]"
+
+    # Render a suspend context
     suspend_context = "Debugging {0} (pid {1} @ {2} {3})\n\n".format(session.desc, session.pid, session.addr, connection_status)
     suspend_context += "Stack Trace:\n"
     if "frames" in session.state:
@@ -450,7 +455,16 @@ class GotoolsDebugCommand(sublime_plugin.WindowCommand):
       if "locals" in currentFrame:
         suspend_context += "\nLocals:\n"
         for local in currentFrame["locals"]:
-          suspend_context += "{0} = {1}\n".format(local["name"], local["value"])
+          obj = local["valueObject"]
+          value = ""
+          if obj["type"] == "Map":
+            value = obj["map"]
+          elif obj["type"] == "Array":
+            value = obj["array"]
+          elif obj["type"] == "String":
+            value = obj["string"]
+          value = json.dumps(value, indent=2)
+          suspend_context += "{0} ({1}): {2}\n".format(local["name"], local["type"], value)
       else:
         suspend_context += "<no locals available>\n"
     else:
@@ -458,23 +472,25 @@ class GotoolsDebugCommand(sublime_plugin.WindowCommand):
         suspend_context += "<debugged process exited>\n"
       else:
         suspend_context += "<no stack trace available>\n"
+
+    # Display the context and focus the session panel
     panel.run_command('append', {'characters': suspend_context})
     self.window.run_command("show_panel", {"panel": "output.gotools.debug.session"})
 
-  def read_debugger_log(self):
-    Logger.log("started reading debugger log")
+  # def read_debugger_log(self):
+  #   Logger.log("started reading debugger log")
 
-    output_view = sublime.active_window().create_output_panel('gotools_debug_log')
-    output_view.set_scratch(True)
-    output_view.run_command("select_all")
-    output_view.run_command("right_delete")
-    sublime.active_window().run_command("show_panel", {"panel": "output.gotools_debug_log"})
+  #   output_view = sublime.active_window().create_output_panel('gotools_debug_log')
+  #   output_view.set_scratch(True)
+  #   output_view.run_command("select_all")
+  #   output_view.run_command("right_delete")
+  #   sublime.active_window().run_command("show_panel", {"panel": "output.gotools_debug_log"})
 
-    reason = "<eof>"
-    try:
-      for line in GotoolsDebugCommand.Process.stdout:
-        output_view.run_command('append', {'characters': line})
-    except Exception as err:
-      reason = err
+  #   reason = "<eof>"
+  #   try:
+  #     for line in GotoolsDebugCommand.Process.stdout:
+  #       output_view.run_command('append', {'characters': line})
+  #   except Exception as err:
+  #     reason = err
 
-    Logger.log("finished reading debuger log (closed: "+ reason +")")
+  #   Logger.log("finished reading debuger log (closed: "+ reason +")")
