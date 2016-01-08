@@ -9,6 +9,15 @@ from .gotools_settings import GoToolsSettings
 
 class Buffers():
   @staticmethod
+  def offset_at_row_col(view, row, col):
+    point = view.text_point(row, col)
+    select_region = sublime.Region(0, point)
+    string_region = view.substr(select_region)
+    buffer_region = bytearray(string_region, encoding="utf8")
+    offset = len(buffer_region)
+    return offset
+
+  @staticmethod
   def buffer_text(view):
     file_text = sublime.Region(0, view.size())
     return view.substr(file_text).encode('utf-8')
@@ -18,7 +27,7 @@ class Buffers():
     begin_row, begin_col = view.rowcol(view.sel()[0].begin())
     end_row, end_col = view.rowcol(view.sel()[0].end())
 
-    return (view.text_point(begin_row, begin_col), view.text_point(end_row, end_col))
+    return (Buffers.offset_at_row_col(view, begin_row, begin_col), Buffers.offset_at_row_col(view, end_row, end_col))
 
   @staticmethod
   def location_at_cursor(view):
@@ -30,7 +39,7 @@ class Buffers():
   def location_for_event(view, event):
     pt = view.window_to_text((event["x"], event["y"]))
     row, col = view.rowcol(pt)
-    offset = view.text_point(row, col)
+    offset = Buffers.offset_at_row_col(view, row, col)
     return (view.file_name(), row, col, offset)
 
 class GoBuffers():
