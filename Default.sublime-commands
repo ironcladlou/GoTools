@@ -66,5 +66,25 @@
     "args": {
       "command": "referrers"
     }
+  },
+  {
+    "caption": "GoTools: Test Directory",
+    "command": "gotools_test_directory"
+  },
+  {
+    "caption": "GoTools: Test Function",
+    "command": "gotools_test_function"
+  },
+  {
+    "caption": "GoTools: Repeat Last Test",
+    "command": "gotools_repeat_test"
+  },
+  {
+    "caption": "GoTools: Toggle Test Output",
+    "command": "gotools_toggle_test_output"
+  },
+  {
+    "caption": "GoTools: Toggle Build Output",
+    "command": "gotools_toggle_build_output"
   }
 ]

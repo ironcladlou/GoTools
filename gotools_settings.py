@@ -76,7 +76,14 @@ class GoToolsSettings():
       if len(sub) == 0:
         sub = self.env['GOPATH']
       gopath = self.project_settings['gopath'].replace('${gopath}', sub)
-    return gopath
+
+    expanded = []
+    for path in gopath.split(':'):
+      if path[0] == '.':
+        expanded.append(os.path.normpath(os.path.join(self.project_dir, path)))
+      else:
+        expanded.append(path)
+    return ":".join(expanded)
 
   @property
   def goroot(self):
@@ -163,6 +170,20 @@ class GoToolsSettings():
   @property
   def test_timeout(self):
     return self.get_setting("test_timeout", None)
+
+  @property
+  def install_packages(self):
+    return self.get_setting("install_packages", [])
+
+  @property
+  def project_dir(self):
+    project_dir = None
+    project_filename = sublime.active_window().project_file_name()
+    if project_filename and len(project_filename) > 0:
+      project_dir = os.path.dirname(project_filename)
+    else:
+      project_dir = '.'
+    return project_dir
 
   # Load PATH, GOPATH, GOROOT, and anything `go env` can provide. Use the
   # precedence order: Login shell > OS env > go env. The environment is
