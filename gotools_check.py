@@ -3,106 +3,284 @@ import sublime_plugin
 import re
 import os
 import threading
+import tempfile
+import subprocess
+import time
+from functools import partial
+from collections import namedtuple
 
 from .gotools_util import Buffers
 from .gotools_util import GoBuffers
 from .gotools_util import Logger
 from .gotools_util import ToolRunner
+from .gotools_util import TimeoutThread
 from .gotools_settings import GoToolsSettings
 
-class GotoolsCheckOnSave(sublime_plugin.EventListener):
-  def on_post_save(self, view):
-    view.run_command('gotools_check')
-    return
+def plugin_unloaded():
+  for _, r in DiagnosticManager.renderers.items():
+    r.stop()
 
-  def on_selection_modified(self, view):
-    GotoolsCheck.sync_view_errors()
-
-class GotoolsCheck(sublime_plugin.TextCommand):
+# TODO: extract so other systems can feed events
+class DiagnosticManager():
   lock = threading.Lock()
-  errors = {}
+  engines = {}
+  renderers = {}
 
-  def is_enabled(self):
-    return GoBuffers.is_go_source(self.view)
-    
-  def run(self, edit):
-    sublime.set_timeout_async(lambda: self.check(self.view), 0)
-  
   @staticmethod
-  def sync_view_errors():
-    for view in sublime.active_window().views():
-      view.hide_popup()
-      errors = GotoolsCheck.errors.get(view.file_name())
-      if not errors:
-        view.set_status("gotools.selected_check_error", '')
-        view.erase_regions("gotools.check")
-        continue
-
-      Logger.log("errors for view: {0}".format(errors))
-      marks = []
-      for err in errors:
-        marks.append(view.line(view.text_point(err['line']-1, 0)))
-        
-        err_region = view.line(view.text_point(err['line']-1, 0))
-        if err_region.contains(view.sel()[0]):
-          view.set_status("gotools.selected_check_error", "ERROR: "+err['error'])
-          view.show_popup('''
-            <style>
-            html {{
-              display: block;
-              background-color: #2D2D30;
-              color: #fff;
-            }}
-            p {{
-              color: #ff0000;
-            }}
-            </style>
-            <p>{error}</p>
-          '''.format(error=err['error']), max_width=640)
-      if len(marks) > 0:
-        view.add_regions(
-          "gotools.check",
-          marks,
-          "keyword.control.go",
-          "dot",
-          sublime.DRAW_SQUIGGLY_UNDERLINE|sublime.DRAW_NO_FILL|sublime.DRAW_NO_OUTLINE)
-
-  def check(self, view):
-    if not GotoolsCheck.lock.acquire(blocking=False):
-      Logger.log("another check process is already running")
-      return
-
+  def engine(window):
+    DiagnosticManager.lock.acquire()
     try:
-      Logger.log("starting check of {file}".format(file=view.file_name()))
-      view.set_status("gotools.checking", 'Checking source...')
-      cwd = os.path.dirname(view.file_name())
-
-      stdout, stderr, rc = ToolRunner.run(
-        "go", ["build", "-o", "/tmp/gotoolscheck", "."],
-        cwd=cwd, timeout=10)
-      Logger.log("finished build({0})\nstdout:\n{1}\nstdout:\n{2}".format(rc, stdout, stderr))
-
-      errors = []
-      if rc != 0:
-        for stderr_line in stderr.splitlines():
-          match = re.match(r"^([^:]*: )?((.:)?[^:]*):(\d+)(:(\d+))?: (.*)$", stderr_line)
-          if not match:
-            continue
-          filename = match.group(2)
-          filepath = os.path.abspath(os.path.join(cwd, filename))
-          line = int(match.group(4))
-          err = match.group(7)
-          errors.append({
-            "path": filepath,
-            "line": line,
-            "error": err
-          })
-      if len(errors) > 0:
-        GotoolsCheck.errors[view.file_name()] = errors
-      else:
-        GotoolsCheck.errors.pop(view.file_name(), None)
-      Logger.log("Updated errors for {0}: {1}".format(view.file_name(), errors))
+      if not window.id() in DiagnosticManager.engines:
+        engine = DiagnosticEngine(window)
+        renderer = DiagnosticRenderer(window, engine)
+        renderer.start()
+        DiagnosticManager.engines[window.id()] = {
+          'engine': engine,
+          'renderer': renderer
+        }
+        Logger.log('Created diagnostic engine and renderer for window {0}'.format(window.id()))
+      return DiagnosticManager.engines[window.id()]['engine']
     finally:
-      view.set_status("gotools.checking", '')
-      GotoolsCheck.lock.release()
-      GotoolsCheck.sync_view_errors()
+      DiagnosticManager.lock.release()
+
+class DiagnosticEngine():
+  def __init__(self, window):
+    self.window = window
+    self.name = 'diag-{0}'.format(window.id())
+    self.cache = {}
+
+  def log(self, msg):
+    Logger.log('{name}: {msg}'.format(name=self.name, msg=msg))
+  
+  def check(self, view):
+    view.set_status("gotools.checking", 'Checking source...')
+    filename = view.file_name()
+    args = []
+    test_match = re.match(r'^.*_test.go$', filename)
+    if test_match:
+      args = ['test', '-copybinary', '-o', tempfile.NamedTemporaryFile().name, '-c', '.']
+    else:
+      args = ['build', '-o', tempfile.NamedTemporaryFile().name, '.']
+
+    cmd = [ToolRunner.tool_path("go")] + args
+    cwd = os.path.dirname(filename)
+
+    self.log("checking {file} (command: {cmd})".format(file=filename, cmd=' '.join(cmd)))
+    p = subprocess.Popen(
+      cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+      env=ToolRunner.env(), startupinfo=ToolRunner.startupinfo(), cwd=cwd)
+    stdout, _ = p.communicate(timeout=20)
+    p.wait(timeout=20)
+
+    errors = []
+    if p.returncode != 0:
+      for output_line in stdout.decode('utf-8').splitlines():
+        match = re.match(r"^([^:]*: )?((.:)?[^:]*):(\d+)(:(\d+))?: (.*)$", output_line)
+        if not match:
+          continue
+        absfile = match.group(2)
+        absfile = os.path.abspath(os.path.join(cwd, filename))
+        line = int(match.group(4))
+        err = match.group(7)
+        errors.append({
+          'path': absfile,
+          'line': line,
+          'type': 'compiler',
+          'error': err
+        })
+    if len(errors) > 0:
+      self.cache[filename] = {'errors': errors, 'timestamp': int(time.time())}
+    else:
+      self.cache.pop(filename, None)
+    self.log("finished checking {file} (exited: {rc}, errors: {count})".format(
+      file=filename,
+      rc=p.returncode,
+      count=len(errors)
+    ))
+    view.set_status("gotools.checking", '')
+
+class DiagnosticRenderer():
+  def __init__(self, window, engine):
+    self.window = window
+    self.engine = engine
+    self.stopped = False
+    self.period = 2
+    self.name = '{engine}-renderer'.format(engine=self.engine.name)
+    self.last_observed_cache_times = {}
+
+  def log(self, msg):
+    Logger.log('{name}: {msg}'.format(name=self.name, msg=msg))
+
+  def start(self):
+    self.thread = threading.Thread(target=lambda: self.render())
+    self.thread.start()
+
+  def stop(self):
+    self.stopped = True
+
+  def view_updated(self, view):
+    view.set_status("gotools.checking", 'Checking source...')
+    self.check(view.file_name())
+    view.set_status("gotools.checking", '')
+
+  def render(self):
+    while not self.stopped:
+      for view in self.window.views():
+        if not GoBuffers.is_go_source(view):
+          continue
+        diagnostics = self.engine.cache.get(view.file_name(), None)
+        if not diagnostics:
+          view.erase_regions("gotools.check")
+          view.hide_popup()
+          view.set_status("gotools.selected_check_error", '')
+          self.last_observed_cache_times.pop(view.file_name(), None)
+          continue
+        self.render_marks(view, diagnostics)
+        self.render_popups(view, diagnostics)
+      time.sleep(self.period)
+    self.log('stopping')
+
+  def render_marks(self, view, diagnostics):
+    if diagnostics['timestamp'] == self.last_observed_cache_times.get(view.file_name(), -1):
+      return
+    self.log('rendering marks for dirty cache of view {v}'.format(v=view.file_name()))
+    marks = [view.line(view.text_point(d['line']-1, 0)) for d in diagnostics['errors']]
+    view.erase_regions("gotools.check")
+    if len(marks) > 0:
+      view.add_regions(
+        "gotools.check",
+        marks,
+        "keyword.control.go",
+        "dot",
+        sublime.DRAW_SQUIGGLY_UNDERLINE|sublime.DRAW_NO_FILL|sublime.DRAW_NO_OUTLINE)
+    self.last_observed_cache_times[view.file_name()] = diagnostics['timestamp']
+
+  def render_popups(self, view, diagnostics):
+    for err in diagnostics['errors']:
+      err_region = view.line(view.text_point(err['line']-1, 0))
+      if err_region.contains(view.sel()[0]):
+        if not view.is_popup_visible():
+          view.set_status("gotools.selected_check_error", "ERROR: {err}".format(err=err['error']))
+          view.show_popup(ErrorPopupHtmlTemplate.format(error=err['error']), max_width=640)
+        return
+    view.hide_popup()
+
+class GotoolsCheckListener(sublime_plugin.EventListener):
+  def on_post_save_async(self, view):
+    if not GoBuffers.is_go_source(view):
+      return
+    DiagnosticManager.engine(view.window()).check(view)
+
+  def on_load_async(self, view):
+    if not GoBuffers.is_go_source(view):
+      return
+    DiagnosticManager.engine(view.window()).check(view)
+
+ErrorPopupHtmlTemplate = '''
+<style>
+html {{
+  display: block;
+  background-color: #2D2D30;
+  color: #fff;
+}}
+p {{
+  color: #ff0000;
+}}
+</style>
+<p>{error}</p>
+'''
+
+# defer_thread = None
+
+# def plugin_loaded():
+#   global defer_thread
+#   defer_thread = TimeoutThread(0.5, default_timeout=0.6)
+#   defer_thread.start()
+
+# def plugin_unloaded():
+#   defer_thread.queue_stop()
+
+
+# class GotoolsCheckFile(sublime_plugin.TextCommand):
+#   errors = {}
+
+#   def is_enabled(self):
+#     return GoBuffers.is_go_source(self.view)
+    
+#   def run(self, edit):
+#     sublime.set_timeout_async(lambda: self.check(self.view), 0)
+
+#   @staticmethod
+#   def sync_error_hints(view):
+#     view.set_status("gotools.selected_check_error", '')
+#     view.hide_popup()
+#     for err in GotoolsCheckFile.errors.get(view.file_name()) or []:
+#       err_region = view.line(view.text_point(err['line']-1, 0))
+#       if not err_region.contains(view.sel()[0]):
+#         continue
+#       view.set_status("gotools.selected_check_error", "ERROR: {err}".format(err=err['error']))
+#       view.show_popup(ErrorPopupHtmlTemplate.format(error=err['error']), max_width=640)
+#       break
+
+#   @staticmethod
+#   def sync_view_errors(view):
+#     view.erase_regions("gotools.check")
+#     errors = GotoolsCheckFile.errors.get(view.file_name()) or []
+#     marks = [view.line(view.text_point(err['line']-1, 0)) for err in errors]
+#     if len(marks) > 0:
+#       view.add_regions(
+#         "gotools.check",
+#         marks,
+#         "keyword.control.go",
+#         "dot",
+#         sublime.DRAW_SQUIGGLY_UNDERLINE|sublime.DRAW_NO_FILL|sublime.DRAW_NO_OUTLINE)
+
+#   def check(self, view):
+#     try:
+#       args = []
+#       test_match = re.match(r'^.*_test.go$', view.file_name())
+#       if test_match:
+#         args = ['test', '-copybinary', '-o', '/tmp/gotoolscheck', '-c', '.']
+#       else:
+#         args = ['build', '-o', '/tmp/gotoolscheck', '.']
+
+#       cmd = [ToolRunner.tool_path("go")] + args
+#       cwd = os.path.dirname(view.file_name())
+
+#       Logger.log("starting check of {file}: {cmd}".format(file=view.file_name(), cmd=cmd))
+#       view.set_status("gotools.checking", 'Checking source...')
+#       p = subprocess.Popen(
+#         cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+#         env=ToolRunner.env(), startupinfo=ToolRunner.startupinfo(), cwd=cwd)
+#       stdout, _ = p.communicate(timeout=20)
+#       p.wait(timeout=20)
+      
+#       Logger.log("finished check ({0})".format(p.returncode))
+
+#       errors = []
+#       if p.returncode != 0:
+#         for output_line in stdout.decode('utf-8').splitlines():
+#           match = re.match(r"^([^:]*: )?((.:)?[^:]*):(\d+)(:(\d+))?: (.*)$", output_line)
+#           if not match:
+#             continue
+#           filename = match.group(2)
+#           filepath = os.path.abspath(os.path.join(cwd, filename))
+#           line = int(match.group(4))
+#           err = match.group(7)
+#           errors.append({
+#             'path': filepath,
+#             'line': line,
+#             'type': 'compiler',
+#             'error': err
+#           })
+#       if len(errors) > 0:
+#         self.cache[view.file_name()] = errors
+#       else:
+#         GotoolsCheck.errors.pop(view.file_name(), None)
+#       Logger.log("Updated errors for {file}:\n{errors}".format(
+#         file=view.file_name(),
+#         errors="\n".join([str(e) for e in errors])
+#       ))
+#     finally:
+#       view.set_status("gotools.checking", '')
+#       GotoolsCheckFile.sync_view_errors(view)

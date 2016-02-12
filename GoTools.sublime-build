@@ -1,36 +1,13 @@
 {
   "cmd": [],
   "working_dir": "",
-  "target": "gotools_build",
+  "target": "gotools_install",
   "selector": "source.go",
 
   "variants": [
     {
-      "name": "Build",
-    },
-    {
-      "name": "Clean Build",
+      "name": "Clean",
       "clean": true
-    },
-    {
-      "name": "Run Tests",
-      "task": "test_packages"
-    },
-    {
-      "name": "Run Tagged Tests",
-      "task": "test_tagged_packages"
-    },
-    {
-      "name": "Run Test at Cursor",
-      "task": "test_at_cursor"
-    },
-    {
-      "name": "Run Current Package Tests",
-      "task": "test_current_package"
-    },
-    {
-      "name": "Run Last Test",
-      "task": "test_last"
     }
   ]
 }
