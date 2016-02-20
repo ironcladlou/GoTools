@@ -20,6 +20,7 @@ class GoToolsSettings():
     self.refresh()
     # Only refresh plugin settings when they have changed.
     self.plugin_settings.add_on_change("gopath", self.refresh)
+    self.plugin_settings.add_on_change("project_path", self.refresh)
 
   @staticmethod
   def get():
@@ -80,7 +81,7 @@ class GoToolsSettings():
     expanded = []
     for path in gopath.split(':'):
       if path[0] == '.':
-        expanded.append(os.path.normpath(os.path.join(self.project_dir, path)))
+        expanded.append(os.path.normpath(os.path.join(self.project_path, path)))
       else:
         expanded.append(path)
     return ":".join(expanded)
@@ -176,14 +177,17 @@ class GoToolsSettings():
     return self.get_setting("install_packages", [])
 
   @property
-  def project_dir(self):
-    project_dir = None
+  def project_path(self):
+    return os.path.normpath(self.get_setting('project_path', self.default_project_path()))
+
+  def default_project_path(self):
+    project_path = None
     project_filename = sublime.active_window().project_file_name()
     if project_filename and len(project_filename) > 0:
-      project_dir = os.path.dirname(project_filename)
+      project_path = os.path.dirname(project_filename)
     else:
-      project_dir = '.'
-    return project_dir
+      project_path = '.'
+    return project_path
 
   # Load PATH, GOPATH, GOROOT, and anything `go env` can provide. Use the
   # precedence order: Login shell > OS env > go env. The environment is

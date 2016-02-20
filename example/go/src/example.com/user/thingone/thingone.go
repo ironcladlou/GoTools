@@ -8,7 +8,7 @@ import (
 
 func main() {
 	s := lib.Splatchet{
-		Wizzle: "snark",
+		Wizzle2: "snark",
 	}
 	fmt.Println("it's a %v", s)
 }
