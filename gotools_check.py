@@ -22,7 +22,7 @@ def plugin_unloaded():
 
 # TODO: extract so other systems can feed events
 class DiagnosticManager():
-  lock = threading.Lock()
+  lock = threading.RLock()
   engines = {}
   renderers = {}
 
@@ -33,7 +33,7 @@ class DiagnosticManager():
       if not window.id() in DiagnosticManager.engines:
         engine = DiagnosticEngine(window)
         renderer = DiagnosticRenderer(window, engine)
-        renderer.start()
+        #renderer.start()
         DiagnosticManager.engines[window.id()] = {
           'engine': engine,
           'renderer': renderer
@@ -43,11 +43,51 @@ class DiagnosticManager():
     finally:
       DiagnosticManager.lock.release()
 
+class Diagnostic():
+  def __init__(self, path=None, line=0, column=0, message=None):
+    if not path:
+      raise Exception('path is required')
+    if not message:
+      raise Exception('message is required')
+    self.path = path
+    self.line = line
+    self.column = column
+    self.message = message
+
+  def __str__(self):
+    return '{path}:{line}:{column}: {message}'.format(path=self.path, line=self.line, column=self.column, message=self.message)
+
+class DiagnosticCache():
+  def __init__(self):
+    self.cache = {}
+    self.lock = threading.RLock()
+
+  def set_diagnostics(self, filename, kind, entries=[]):
+    self.lock.acquire()
+    if not filename in self.cache:
+      self.cache[filename] = {}
+    self.cache[filename][kind] = {
+      'timestamp': int(time.time()),
+      'entries': entries
+    }
+    Logger.log('set diagnostics for {filename}/{kind}:'.format(filename=filename, kind=kind))
+    for entry in entries:
+      Logger.log('  ' + str(entry))
+    self.lock.release()
+
+  def clear_diagnostics(self, filename, kind):
+    self.lock.acquire()
+    if not filename in self.cache:
+      return
+    self.cache[filename].pop(kind, None)
+    Logger.log('cleared diagnostics for {filename}/{kind}'.format(filename=filename, kind=kind))
+    self.local.release()
+
 class DiagnosticEngine():
   def __init__(self, window):
     self.window = window
     self.name = 'diag-{0}'.format(window.id())
-    self.cache = {}
+    self.cache = DiagnosticCache()
 
   def log(self, msg):
     Logger.log('{name}: {msg}'.format(name=self.name, msg=msg))
@@ -82,17 +122,17 @@ class DiagnosticEngine():
         absfile = os.path.abspath(os.path.join(cwd, filename))
         line = int(match.group(4))
         err = match.group(7)
-        errors.append({
-          'path': absfile,
-          'line': line,
-          'type': 'compiler',
-          'error': err
-        })
+        errors.append(Diagnostic(
+          path=absfile,
+          line=line,
+          message=err
+        ))
     if len(errors) > 0:
-      self.cache[filename] = {'errors': errors, 'timestamp': int(time.time())}
+      self.cache.set_diagnostics(filename=filename, kind='compiler', entries=errors)
     else:
-      self.cache.pop(filename, None)
-    self.log("finished checking {file} (exited: {rc}, errors: {count})".format(
+      self.cache.clear_diagnostics(filename)
+
+    self.log("finished checking {file} (exited: {rc}, compiler errors: {count})".format(
       file=filename,
       rc=p.returncode,
       count=len(errors)
