@@ -1,8 +1,10 @@
+### :warning: This project is no longer maintained. :warning:
+
+I recommend [Visual Studio Code](https://code.visualstudio.com) with the [vscode-go](https://github.com/Microsoft/vscode-go) extension for a nicer Go programming experience.
+
 # GoTools
 
 GoTools is a [Go programming language](http://www.golang.org) plugin for [Sublime Text 3](http://www.sublimetext.com) inspired by [vim-go](https://github.com/fatih/vim-go). Rather than attempting to reinvent various supporting IDE components, it provides integration with existing community-supported tools.
-
-**Please note** that the project is still considered a pre-release alpha/personal project and no effort is being made to maintain compatibility with any old settings or environments.
 
 ## Features
 
