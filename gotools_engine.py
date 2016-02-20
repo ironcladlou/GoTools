@@ -17,7 +17,7 @@ def plugin_unloaded():
   EngineManager.destroy()
 
 class EngineManager():
-  lock = threading.Lock()
+  lock = threading.RLock()
   engines = {}
   builders = {}
 
@@ -26,17 +26,18 @@ class EngineManager():
     EngineManager.lock.acquire()
     EngineManager.builders[label] = builder
     EngineManager.lock.release()
+    Logger.log("Registered engine builder: {0}".format(label))
 
   @staticmethod
   def engine(window, label):
     EngineManager.lock.acquire()
     try:
       if not window.id() in EngineManager.engines:
-        EngineManager.engines[window.id()] = {label: None}
-      if not EngineManager.engines[window.id()][label]:
-        builder = EngineManager.builders[label]
-        if not builder:
+        EngineManager.engines[window.id()] = {}
+      if not label in EngineManager.engines[window.id()]:
+        if not label in EngineManager.builders:
           raise Exception('no engine builder registered for {0}'.format(label))
+        builder = EngineManager.builders[label]
         engine = builder(window)
         EngineManager.engines[window.id()][label] = engine
         Logger.log('Created engine {name} for window {wid} and label {label}'.format(
@@ -57,8 +58,28 @@ class EngineManager():
       EngineManager.lock.release()
 
   @staticmethod
+  def unregister(label):
+    try:
+      EngineManager.lock.acquire()
+      Logger.log("Unregistering engine {0}".format(label))
+      for _, engine in EngineManager.engines.iteritems():
+        if engine.label == label:
+          Logger.log("Destroying engine {0}".format(engine.name))
+          del EngineManager.engines[engine.name]
+      if label in EngineManager.builders:
+        Logger.log("Destroying engine builder {0}".format(label))
+        del EngineManager.builders[label]
+    finally:
+      EngineManager.lock.release()
+
+  @staticmethod
   def destroy():
-    EngineManager = None
+    print("Destroying engine manager")
+    EngineManager.lock.acquire()
+    EngineManager.engines = {}
+    EngineManager.builders =  {}
+    EngineManager.lock.release()
+    print("Engine manager destroyed")
 
 class WorkerAlreadyRunning(Exception):
   def __init__(self):

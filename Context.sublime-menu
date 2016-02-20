@@ -4,31 +4,14 @@
     "caption": "Go Build"
   },
   {
-    "command": "build",
-    "caption": "Go Tests",
-    "args": {
-      "variant": "Run Tests"
-    }
+    "command": "gotools_test_function",
+    "caption": "Test Function"
   },
   {
-    "command": "build",
-    "caption": "Go Test at Cursor",
-    "args": {
-      "variant": "Run Test at Cursor"
-    }
-  },
-  {
-    "command": "build",
-    "caption": "Go Test Current Package",
+    "command": "gotools_test_directory",
+    "caption": "Test Package",
     "args": {
       "variant": "Run Current Package Tests"
-    }
-  },
-  {
-    "command": "build",
-    "caption": "Go Test Tagged",
-    "args": {
-      "variant": "Run Tagged Tests"
     }
   }
 ]

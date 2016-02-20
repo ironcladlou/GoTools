@@ -19,16 +19,24 @@ from .gotools_settings import GoToolsSettings
 def plugin_loaded():
   EngineManager.register(BuildEngine.Label, lambda window: BuildEngine(window))
 
+def plugin_unloaded():
+  EngineManager.unregister(BuildEngine.label)
+
 class BuildEngine():
   Label = 'build'
+  ErrorPattern = r'^(.*\.go):(\d+):()(.*)$'
 
   def __init__(self, window):
     self.engine = Engine(window, BuildEngine.Label)
-    self.engine.panel.settings().set("result_file_regex", r'^(.*\.go):(\d+):()(.*)$')
+    self.engine.panel.settings().set("result_file_regex", BuildEngine.ErrorPattern)
 
   @property
   def name(self):
     return self.engine.name
+
+  @property
+  def label(self):
+    return BuildEngine.Label
 
   def install(self, packages):
     self.engine.start_worker(lambda: self.run_install(packages))
@@ -37,6 +45,7 @@ class BuildEngine():
     self.engine.log("installing packages: {0}".format(packages))
     cmd = [ToolRunner.tool_path('go'), 'install', '-v'] + packages
     project_dir = GoToolsSettings.get().project_dir
+    Logger.log("project_dir="+project_dir)
     self.engine.clear_panel()
     self.engine.show_panel()
     self.engine.log_panel('installing {packages}'.format(packages=' '.join(packages)))
@@ -46,6 +55,7 @@ class BuildEngine():
     # TODO: this is reliant on the go timeout; readline could block forever
     for line in iter(p.stdout.readline, b''):
       decoded = line.decode("utf-8")
+      self.engine.log("decoded="+decoded)
       match = re.match(r'^(.*\.go)(:\d+:.*)$', decoded)
       if match:
         decoded = '{0}{1}\n'.format(os.path.normpath(os.path.join(project_dir, match.group(1))), match.group(2))
