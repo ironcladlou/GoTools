@@ -20,7 +20,7 @@ def plugin_loaded():
   EngineManager.register(BuildEngine.Label, lambda window: BuildEngine(window))
 
 def plugin_unloaded():
-  EngineManager.unregister(BuildEngine.label)
+  EngineManager.unregister(BuildEngine.Label)
 
 class BuildEngine():
   Label = 'build'
@@ -44,7 +44,7 @@ class BuildEngine():
   def run_install(self, packages):
     self.engine.log("installing packages: {0}".format(packages))
     cmd = [ToolRunner.tool_path('go'), 'install', '-v'] + packages
-    project_path = GoToolsSettings.get().project_path
+    project_path = GoToolsSettings.instance().get('project_path')
     self.engine.clear_panel()
     self.engine.show_panel()
     self.engine.log_panel('installing {packages}'.format(packages=' '.join(packages)))
@@ -54,7 +54,6 @@ class BuildEngine():
     # TODO: this is reliant on the go timeout; readline could block forever
     for line in iter(p.stdout.readline, b''):
       decoded = line.decode("utf-8")
-      self.engine.log("decoded="+decoded)
       match = re.match(r'^(.*\.go)(:\d+:.*)$', decoded)
       if match:
         decoded = '{0}{1}\n'.format(os.path.normpath(os.path.join(project_path, match.group(1))), match.group(2))
@@ -68,7 +67,7 @@ class GotoolsToggleBuildOutput(sublime_plugin.WindowCommand):
 
 class GotoolsInstall(sublime_plugin.WindowCommand):
   def run(self, *args, **kwargs):
-    EngineManager.engine(self.window, BuildEngine.Label).install(GoToolsSettings.get().install_packages)
+    EngineManager.engine(self.window, BuildEngine.Label).install(GoToolsSettings.instance().get('install_packages'))
 
 # class GotoolsBuildCommand(sublime_plugin.WindowCommand):
 #   def run(self, cmd = None, shell_cmd = None, file_regex = "", line_regex = "", working_dir = "",
@@ -83,9 +82,9 @@ class GotoolsInstall(sublime_plugin.WindowCommand):
 #     if len(file_regex) == 0:
 #       file_regex = "^(.*\\.go):(\\d+):()(.*)$"
 
-#     env["GOPATH"] = GoToolsSettings.get().gopath
-#     env["GOROOT"] = GoToolsSettings.get().goroot
-#     env["PATH"] = GoToolsSettings.get().ospath
+#     env["GOPATH"] = GoToolsSettings.instance().get('gopath')
+#     env["GOROOT"] = GoToolsSettings.instance().get('goroot')
+#     env["PATH"] = GoToolsSettings.instance().get('ospath')
 
 #     exec_opts = {
 #       "cmd": cmd,
@@ -107,9 +106,9 @@ class GotoolsInstall(sublime_plugin.WindowCommand):
 #       self.test_packages(exec_opts, self.find_test_packages())
 #     elif task == "test_tagged_packages":
 #       pkgs = []
-#       for p in GoToolsSettings.get().tagged_test_packages:
-#         pkgs.append(os.path.join(GoToolsSettings.get().project_package, p))
-#       self.test_packages(exec_opts=exec_opts, packages=pkgs, tags=GoToolsSettings.get().tagged_test_tags)
+#       for p in GoToolsSettings.instance().get('tagged_test_packages'):
+#         pkgs.append(os.path.join(GoToolsSettings.instance().get('project_package'), p))
+#       self.test_packages(exec_opts=exec_opts, packages=pkgs, tags=GoToolsSettings.instance().get('tagged_test_tags'))
 #     elif task == "test_at_cursor":
 #       self.test_at_cursor(exec_opts)
 #     elif task == "test_current_package":
@@ -122,8 +121,8 @@ class GotoolsInstall(sublime_plugin.WindowCommand):
 
 #   def clean(self):
 #     Logger.log("cleaning build output directories")
-#     for p in GoToolsSettings.get().gopath.split(":"):
-#       pkgdir = os.path.join(p, "pkg", GoToolsSettings.get().goos + "_" + GoToolsSettings.get().goarch)
+#     for p in GoToolsSettings.instance().get('gopath').split(":"):
+#       pkgdir = os.path.join(p, "pkg", GoToolsSettings.instance().get('goos') + "_" + GoToolsSettings.instance().get('goarch'))
 #       Logger.log("=> " + pkgdir)
 #       if os.path.exists(pkgdir):
 #         try:
@@ -134,12 +133,12 @@ class GotoolsInstall(sublime_plugin.WindowCommand):
 
 #   def build(self, exec_opts):
 #     build_packages = []
-#     for p in GoToolsSettings.get().build_packages:
-#       build_packages.append(os.path.join(GoToolsSettings.get().project_package, p))
+#     for p in GoToolsSettings.instance().get('build_packages'):
+#       build_packages.append(os.path.join(GoToolsSettings.instance().get('project_package'), p))
 
 #     Logger.log("running build for packages: " + str(build_packages))
 
-#     go = GoToolsSettings.get().find_go_binary(GoToolsSettings.get().ospath)
+#     go = GoToolsSettings.instance().get('find_go_binary')(GoToolsSettings.instance().get('ospath'))
 #     exec_opts["cmd"] = [go, "install"] + build_packages
 
 #     self.window.run_command("exec", exec_opts)
@@ -150,17 +149,17 @@ class GotoolsInstall(sublime_plugin.WindowCommand):
 #     Logger.log("test packages: " + str(packages))
 #     Logger.log("test patterns: " + str(patterns))
 
-#     go = GoToolsSettings.get().find_go_binary(GoToolsSettings.get().ospath)
+#     go = GoToolsSettings.instance().get('find_go_binary')(GoToolsSettings.instance().get('ospath'))
 #     cmd = [go, "test"]
 
 #     if len(tags) > 0:
 #       cmd += ["-tags", ",".join(tags)]
 
-#     if GoToolsSettings.get().verbose_tests:
+#     if GoToolsSettings.instance().get('verbose_tests'):
 #       cmd.append("-v")
 
-#     if GoToolsSettings.get().test_timeout:
-#       cmd += ["-timeout", GoToolsSettings.get().test_timeout]
+#     if GoToolsSettings.instance().get('test_timeout'):
+#       cmd += ["-timeout", GoToolsSettings.instance().get('test_timeout')]
 
 #     cmd += packages
 
@@ -211,34 +210,34 @@ class GotoolsInstall(sublime_plugin.WindowCommand):
 #   def current_file_pkg(self, view):
 #     abs_pkg_dir = os.path.dirname(view.file_name())
 #     try:
-#       return abs_pkg_dir[abs_pkg_dir.index(GoToolsSettings.get().project_package):]
+#       return abs_pkg_dir[abs_pkg_dir.index(GoToolsSettings.instance().get('project_package')):]
 #     except:
 #       return ""
 
 #   def find_test_packages(self):
 #     proj_package_dir = None
 
-#     for gopath in GoToolsSettings.get().gopath.split(":"):
-#       d = os.path.join(gopath, "src", GoToolsSettings.get().project_package)
+#     for gopath in GoToolsSettings.instance().get('gopath').split(":"):
+#       d = os.path.join(gopath, "src", GoToolsSettings.instance().get('project_package'))
 #       if os.path.exists(d):
 #         proj_package_dir = d
 #         break
 
 #     if proj_package_dir == None:
 #       Logger.log("ERROR: couldn't find project package dir '"
-#         + GoToolsSettings.get().project_package + "' in GOPATH: " + GoToolsSettings.get().gopath)
+#         + GoToolsSettings.instance().get('project_package') + "' in GOPATH: " + GoToolsSettings.instance().get('gopath'))
 #       return []
 
 #     packages = {}
 
-#     for pkg_dir in GoToolsSettings.get().test_packages:
+#     for pkg_dir in GoToolsSettings.instance().get('test_packages'):
 #       abs_pkg_dir = os.path.join(proj_package_dir, pkg_dir)
 #       Logger.log("searching for tests in: " + abs_pkg_dir)
 #       for root, dirnames, filenames in os.walk(abs_pkg_dir):
 #         for filename in fnmatch.filter(filenames, '*_test.go'):
 #           abs_test_file = os.path.join(root, filename)
 #           rel_test_file = os.path.relpath(abs_test_file, proj_package_dir)
-#           test_pkg = os.path.join(GoToolsSettings.get().project_package, os.path.dirname(rel_test_file))
+#           test_pkg = os.path.join(GoToolsSettings.instance().get('project_package'), os.path.dirname(rel_test_file))
 #           packages[test_pkg] = None
 
 #     return list(packages.keys())

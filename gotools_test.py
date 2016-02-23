@@ -18,6 +18,9 @@ from .gotools_settings import GoToolsSettings
 def plugin_loaded():
   EngineManager.register(TestEngine.Label, lambda window: TestEngine(window))
 
+def plugin_unloaded():
+  EngineManager.unregister(TestEngine.Label)
+
 class TestEngine():
   Label = 'test'
 
@@ -44,7 +47,7 @@ class TestEngine():
 
   def run_test(self, path, func='.*'):
     self.engine.log("testing {path} (func: {func})".format(path=path, func=func))
-    cmd = [ToolRunner.tool_path("go")] + ["test", "-v", "-timeout", GoToolsSettings.get().test_timeout, "-run", "^{0}$".format(func), "."]
+    cmd = [ToolRunner.tool_path("go")] + ["test", "-v", "-timeout", GoToolsSettings.instance().get('test_timeout'), "-run", "^{0}$".format(func), "."]
     self.engine.clear_panel()
     self.engine.show_panel()
     self.engine.log_panel('testing {file} (functions: {run})'.format(file=os.path.basename(path), run=func))

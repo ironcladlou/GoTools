@@ -11,7 +11,7 @@ from .gotools_settings import GoToolsSettings
 class GotoolsFormatOnSave(sublime_plugin.EventListener):
   def on_pre_save(self, view):
     if not GoBuffers.is_go_source(view): return
-    if not GoToolsSettings.get().format_on_save: return
+    if not GoToolsSettings.instance().get('format_on_save'): return
     view.run_command('gotools_format')
 
 class GotoolsFormat(sublime_plugin.TextCommand):
@@ -21,10 +21,10 @@ class GotoolsFormat(sublime_plugin.TextCommand):
   def run(self, edit):
     command = ""
     args = []
-    if GoToolsSettings.get().format_backend == "gofmt":
+    if GoToolsSettings.instance().get('format_backend') == "gofmt":
       command = "gofmt"
       args = ["-e", "-s"]
-    elif GoToolsSettings.get().format_backend in ["goimports", "both"] :
+    elif GoToolsSettings.instance().get('format_backend') in ["goimports", "both"] :
       command = "goimports"
       args = ["-e"]
 
@@ -34,13 +34,13 @@ class GotoolsFormat(sublime_plugin.TextCommand):
       Logger.log("format aborted due to syntax errors (exited {rc})".format(rc=rc))
       return
 
-    if GoToolsSettings.get().format_backend == "both":
+    if GoToolsSettings.instance().get('format_backend') == "both":
       command = "gofmt"
       args = ["-e", "-s"]
       stdout, stderr, rc = ToolRunner.run(command, args, stdin=stdout.encode('utf-8'))
 
     if rc != 0:
-      Logger.log("format aborted due to syntax errors (exited {rc})".format(rc=rc))
+      Logger.log("Format aborted due to syntax errors (exited {rc})".format(rc=rc))
       return
 
     # Remember the viewport position. When replacing the buffer, Sublime likes to jitter the

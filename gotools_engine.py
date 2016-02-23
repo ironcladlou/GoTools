@@ -21,64 +21,65 @@ class EngineManager():
   engines = {}
   builders = {}
 
-  @staticmethod
-  def register(label, builder):
-    EngineManager.lock.acquire()
-    EngineManager.builders[label] = builder
-    EngineManager.lock.release()
+  @classmethod
+  def register(cls, label, builder):
+    cls.lock.acquire()
+    cls.builders[label] = builder
+    cls.lock.release()
     Logger.log("Registered engine builder: {0}".format(label))
 
-  @staticmethod
-  def engine(window, label):
-    EngineManager.lock.acquire()
+  @classmethod
+  def engine(cls, window, label):
+    cls.lock.acquire()
     try:
-      if not window.id() in EngineManager.engines:
-        EngineManager.engines[window.id()] = {}
-      if not label in EngineManager.engines[window.id()]:
-        if not label in EngineManager.builders:
+      if not window.id() in cls.engines:
+        cls.engines[window.id()] = {}
+      if not label in cls.engines[window.id()]:
+        if not label in cls.builders:
           raise Exception('no engine builder registered for {0}'.format(label))
-        builder = EngineManager.builders[label]
+        builder = cls.builders[label]
         engine = builder(window)
-        EngineManager.engines[window.id()][label] = engine
+        cls.engines[window.id()][label] = engine
         Logger.log('Created engine {name} for window {wid} and label {label}'.format(
           name=engine.name,
           wid=window.id(),
           label=label
         ))
-      engine = EngineManager.engines[window.id()][label]
+      engine = cls.engines[window.id()][label]
       if not engine:
         raise Exception('no engine created for {label} (window: {window}, engines: {engines}, builders: {builders}'.format(
           label=label,
           window=str(window.id()),
-          engines=str(EngineManager.engines),
-          builders=str(EngineManager.builders)
+          engines=str(cls.engines),
+          builders=str(cls.builders)
         ))
       return engine
     finally:
-      EngineManager.lock.release()
+      cls.lock.release()
 
-  @staticmethod
-  def unregister(label):
+  @classmethod
+  def unregister(cls, label):
     try:
-      EngineManager.lock.acquire()
+      cls.lock.acquire()
       Logger.log("Unregistering engine {0}".format(label))
-      for _, engine in EngineManager.engines.iteritems():
-        if engine.label == label:
+      for window, engine_label in cls.engines.items():
+        if engine_label == label:
+          engine = cls.engines[window][engine_label]
           Logger.log("Destroying engine {0}".format(engine.name))
-          del EngineManager.engines[engine.name]
-      if label in EngineManager.builders:
+          del cls.engines[window][engine_label]
+      if label in cls.builders:
         Logger.log("Destroying engine builder {0}".format(label))
-        del EngineManager.builders[label]
+        del cls.builders[label]
     finally:
-      EngineManager.lock.release()
+      cls.lock.release()
 
-  @staticmethod
-  def destroy():
+  @classmethod
+  def destroy(cls):
     print("Destroying engine manager")
-    EngineManager.lock.acquire()
-    EngineManager.engines = {}
-    EngineManager.builders =  {}
-    EngineManager.lock.release()
+    cls.lock.acquire()
+    cls.engines = {}
+    cls.builders =  {}
+    cls.lock.release()
     print("Engine manager destroyed")
 
 class WorkerAlreadyRunning(Exception):

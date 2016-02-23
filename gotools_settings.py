@@ -6,39 +6,66 @@ import subprocess
 import tempfile
 import threading
 
+def plugin_loaded():
+  GoToolsSettings.refresh()
+
+def plugin_unloaded():
+  try:
+    GoToolsSettings.plugin_settings.clear_on_change('gopath')
+    GoToolsSettings.plugin_settings.clear_on_change('project_path')
+    print('GoTools: Unloaded.')
+  except AttributeError:
+    pass
+
 class GoToolsSettings():
-  lock = threading.Lock()
-  instance = None
+  lock = threading.RLock()
+  settings = None
+
+  @classmethod
+  def instance(cls):
+    try:
+      cls.lock.acquire()
+      if not cls.settings:
+        cls.settings = GoToolsSettings()
+      return cls.settings
+    finally:
+      cls.lock.release()
+
+  @classmethod
+  def refresh(cls):
+    try:
+      cls.lock.acquire()
+      cls.settings = GoToolsSettings()
+    finally:
+      cls.lock.release()
 
   def __init__(self):
-    # Only load the environment once.
-    # TODO: Consider doing this during refresh. Environment shouldn't change
-    # often and the call can be slow if the login shell has a nontrivial
-    # amount of init (e.g. bashrc).
-    self.env = self.create_environment()
-    # Perform the initial plugin settings load.
-    self.refresh()
-    # Only refresh plugin settings when they have changed.
-    self.plugin_settings.add_on_change("gopath", self.refresh)
-    self.plugin_settings.add_on_change("project_path", self.refresh)
-
-  @staticmethod
-  def get():
-    GoToolsSettings.lock.acquire()
     try:
-      if GoToolsSettings.instance is None:
-        print("GoTools: initializing settings...")
-        GoToolsSettings.instance = GoToolsSettings()
-        print("GoTools: successfully initialized settings")
+      self.plugin_settings = sublime.load_settings('GoTools.sublime-settings')
+      self.env = self.create_environment()
+      
+      if not self.get('gopath') or len(self.get('gopath')) == 0:
+        print("GoTools: ERROR: no GOPATH is configured (using the `gopath` setting or the GOPATH environment variable)")
+        return
+      if not self.get('goroot') or not self.get('goarch') or not self.get('goos') or not self.get('go_tools'):
+        print("GoTools: ERROR: couldn't find the Go installation (using the `goroot` setting or GOROOT environment variable)")
+        return
+
+      print("GoTools: Initialized successfully.\n\tgopath={gopath}\n\tgoroot={goroot}\n\tpath={ospath}\n\tproject_path={project_path}\n\tenv:{env}\n\tdebug_enabled={debug_enabled}\n".format(
+        gopath=self.get('gopath'),
+        goroot=self.get('goroot'),
+        ospath=self.get('ospath'),
+        debug_enabled=self.get('debug_enabled'),
+        env=str(self.env),
+        project_path=self.get('project_path')
+      ))
+      self.plugin_settings.add_on_change('gopath', GoToolsSettings.refresh)
+      self.plugin_settings.add_on_change('project_path', GoToolsSettings.refresh)
     except Exception as e:
-      raise Exception("GoTools: ERROR: failed to initialize settings: {0}".format(str(e)))
-    finally:
-      GoToolsSettings.lock.release()
-    return GoToolsSettings.instance
+      print('GoTools: ERROR: Initialization failure: {err}'.format(err=str(e)))
 
   # There's no direct access to project settings, so load them from the active
   # view every time. This doesn't seem ideal.
-  @property
   def project_settings(self):
     return sublime.active_window().active_view().settings().get('GoTools', {})
 
@@ -46,7 +73,7 @@ class GoToolsSettings():
   # and using default if neither is found. Key values with 0 length when
   # converted to a string are treated as None.
   def get_setting(self, key, default = None):
-    val = self.project_settings.get(key, '')
+    val = self.project_settings().get(key, '')
     if len(str(val)) > 0:
       return val
     val = self.plugin_settings.get(key, '')
@@ -54,148 +81,89 @@ class GoToolsSettings():
       return val
     return default
 
-  # Reloads the plugin settings file from disk and validates required setings.
-  def refresh(self):
-    # Load settings from disk.
-    self.plugin_settings = sublime.load_settings("GoTools.sublime-settings")
-
-    # Validate properties.
-    if self.gopath is None or len(self.gopath) == 0:
-      raise Exception("GoTools requires either the `gopath` setting or the GOPATH environment variable to be s")
-    if not self.goroot or not self.goarch or not self.goos or not self.go_tools:
-      raise Exception("GoTools couldn't find Go runtime information")
-
-    print("GoTools: configuration updated:\n\tgopath={0}\n\tgoroot={1}\n\tpath={2}\n\tdebug_enabled={3}".format(self.gopath, self.goroot, self.ospath, self.debug_enabled))
+  def get(self, key):
+    if key == 'project_path':
+      return self.get_project_path()
+    if key == 'install_packages':
+      return self.get_setting('install_packages', [])
+    if key == 'gopath':
+      return self.get_gopath()
+    if key == 'goroot':
+      return self.get_setting('goroot', self.env["GOROOT"])
+    if key == 'ospath':
+      return self.get_setting('path', self.env["PATH"])
+    if key == 'goarch':
+      return self.env["GOHOSTARCH"]
+    if key == 'goos':
+      return self.env["GOHOSTOS"]
+    if key == 'go_tools':
+      return self.env["GOTOOLDIR"]
+    if key == 'gorootbin':
+      # The GOROOT bin directory is namespaced with the GOOS and GOARCH.
+      return os.path.join(self.get('goroot'), 'bin', self.get('gohostosarch'))
+    if key == 'golibpath':
+      return self.get_golibpath()
+    if key == 'gohostosarch':
+      return "{0}_{1}".format(self.get('goos'), self.get('goarch'))
+    if key == 'debug_enabled':
+      return self.get_setting("debug_enabled")
+    if key == 'format_on_save':
+      return self.get_setting("format_on_save")
+    if key == 'format_backend':
+      return self.get_setting("format_backend")
+    if key == 'autocomplete':
+      return self.get_setting("autocomplete")
+    if key == 'goto_def_backend':
+      return self.get_setting("goto_def_backend")
+    if key == 'verbose_tests':
+      return self.get_setting("verbose_tests", False)
+    if key == 'test_timeout':
+      return self.get_setting('test_timeout', None)
 
   # Project > Plugin > Shell env > OS env > go env
-  @property
-  def gopath(self):
+  def get_gopath(self):
     gopath = self.get_setting('gopath', self.env["GOPATH"])
     # Support 'gopath' expansion in project settings.
-    if 'gopath' in self.project_settings:
+    if 'gopath' in self.project_settings():
       sub = self.plugin_settings.get('gopath', '')
       if len(sub) == 0:
         sub = self.env['GOPATH']
-      gopath = self.project_settings['gopath'].replace('${gopath}', sub)
+      gopath = self.project_settings()['gopath'].replace('${gopath}', sub)
+      gopath = gopath.replace('${project_file_dir}', self.get_project_file_dir())
 
     expanded = []
     for path in gopath.split(':'):
       if path[0] == '.':
-        expanded.append(os.path.normpath(os.path.join(self.project_path, path)))
+        print('joining project_path={pp} and gopath element={p}\n'.format(pp=self.get('project_path'), p=path))
+        expanded.append(os.path.normpath(os.path.join(self.get('project_path'), path)))
       else:
-        expanded.append(path)
-    return ":".join(expanded)
+        expanded.append(os.path.normpath(path))
+    return ":".join(expanded)    
 
-  @property
-  def goroot(self):
-    return self.get_setting('goroot', self.env["GOROOT"])
-
-  @property
-  def ospath(self):
-    return self.get_setting('path', self.env["PATH"])
-
-  @property
-  def goarch(self):
-    return self.env["GOHOSTARCH"]
-
-  @property
-  def goos(self):
-    return self.env["GOHOSTOS"]
-
-  @property
-  def go_tools(self):
-    return self.env["GOTOOLDIR"]
-
-  @property
-  def gorootbin(self):
-    # The GOROOT bin directory is namespaced with the GOOS and GOARCH.
-    return os.path.join(self.goroot, "bin", self.gohostosarch)
-
-  @property
-  def golibpath(self):
+  def get_golibpath(self):
     libpath = []
-    arch = "{0}_{1}".format(self.goos, self.goarch)
-    libpath.append(os.path.join(self.goroot, "pkg", self.gohostosarch))
-    for p in self.gopath.split(":"):
+    arch = "{0}_{1}".format(self.get('goos'), self.get('goarch'))
+    libpath.append(os.path.join(self.get('goroot'), 'pkg', self.get('gohostosarch')))
+    for p in self.get('gopath').split(':'):
       libpath.append(os.path.join(p, "pkg", arch))
     return ":".join(libpath)
 
-  @property
-  def gohostosarch(self):
-    return "{0}_{1}".format(self.goos, self.goarch)
+  def get_project_path(self):
+    project_path = self.get_setting('project_path').replace('${project_file_dir}', self.get_project_file_dir())
+    return os.path.abspath(os.path.normpath(project_path))
 
-  @property
-  def debug_enabled(self):
-    return self.get_setting("debug_enabled")
-
-  @property
-  def format_on_save(self):
-    return self.get_setting("format_on_save")
-
-  @property
-  def format_backend(self):
-    return self.get_setting("format_backend")
-
-  @property
-  def autocomplete(self):
-    return self.get_setting("autocomplete")
-
-  @property
-  def goto_def_backend(self):
-    return self.get_setting("goto_def_backend")
-
-  @property
-  def project_package(self):
-    return self.get_setting("project_package")
-
-  @property
-  def build_packages(self):
-    return self.get_setting("build_packages", [])
-
-  @property
-  def test_packages(self):
-    return self.get_setting("test_packages", [])
-
-  @property
-  def tagged_test_tags(self):
-    return self.get_setting("tagged_test_tags", [])
-
-  @property
-  def tagged_test_packages(self):
-    return self.get_setting("tagged_test_packages", [])
-
-  @property
-  def verbose_tests(self):
-    return self.get_setting("verbose_tests", False)
-
-  @property
-  def test_timeout(self):
-    return self.get_setting("test_timeout", None)
-
-  @property
-  def install_packages(self):
-    return self.get_setting("install_packages", [])
-
-  @property
-  def project_path(self):
-    return os.path.normpath(self.get_setting('project_path', self.default_project_path()))
-
-  def default_project_path(self):
-    project_path = None
+  def get_project_file_dir(self):
     project_filename = sublime.active_window().project_file_name()
     if project_filename and len(project_filename) > 0:
-      project_path = os.path.dirname(project_filename)
-    else:
-      project_path = '.'
-    return project_path
+      return os.path.dirname(project_filename)
+    return '.'
 
   # Load PATH, GOPATH, GOROOT, and anything `go env` can provide. Use the
   # precedence order: Login shell > OS env > go env. The environment is
   # returned as a dict.
   #
   # Raises an exception if PATH can't be resolved or if `go env` fails.
-  @staticmethod
-  def create_environment():
+  def create_environment(self):
     special_keys = ['PATH', 'GOPATH', 'GOROOT']
     env = {}
 
@@ -229,7 +197,7 @@ class GoToolsSettings():
       raise Exception("couldn't resolve PATH via system environment or login shell")
 
     # Resolve the go binary.
-    gobinary = GoToolsSettings.find_go_binary(env['PATH'])
+    gobinary = self.find_go_binary(env['PATH'])
 
     # Gather up the Go environment using `go env`, but only keep keys which
     # aren't already set from the shell or OS environment.
@@ -250,14 +218,11 @@ class GoToolsSettings():
         v = match.group(2)
         if not k in env or len(env[k]) == 0:
           env[k] = v
-
-    print("GoTools: using environment: {0}".format(str(env)))
     return env
 
   # Returns the absolute path to the go binary found on path. Raises an
   # exception if go can't be found.
-  @staticmethod
-  def find_go_binary(path=""):
+  def find_go_binary(self, path=""):
     goname = "go"
     if platform.system() == "Windows":
       goname = "go.exe"

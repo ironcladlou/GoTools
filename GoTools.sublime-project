@@ -5,21 +5,22 @@
       "path": "."
     },
     {
-      "path": "./example/go/src/example.com/user/thingone"
+      "path": "./example/go/src/github.com/ironcladlou/gotools-example"
     }
   ],
   "settings":
   {
     "GoTools":
     {
-      "project_path": ".",
+      "project_path": "${project_file_dir}/example/go/src/github.com/ironcladlou/gotools-example",
 
       // A custom GOPATH for this project; ${gopath} is expanded by the global
       // settings value.
-      "gopath": "./example/go",
+      "gopath": "${project_file_dir}/example/go",
 
       "install_packages": [
-        "example.com/user/thingone"
+        "github.com/ironcladlou/gotools-example/cmd/gotools-example-1",
+        "github.com/ironcladlou/gotools-example/cmd/gotools-example-2"
       ],
 
       // The root package (or namespace) of a project.

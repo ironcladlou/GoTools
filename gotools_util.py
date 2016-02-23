@@ -69,7 +69,7 @@ class GoBuffers():
 class Logger():
   @staticmethod
   def log(msg):
-    if GoToolsSettings.get().debug_enabled:
+    if GoToolsSettings.instance().get('debug_enabled'):
       print("GoTools: DEBUG: {0}".format(msg))
 
   @staticmethod
@@ -88,11 +88,11 @@ class ToolRunner():
   @staticmethod
   def tool_path(tool):
     toolpath = None
-    searchpaths = list(map(lambda x: os.path.join(x, 'bin'), GoToolsSettings.get().gopath.split(os.pathsep)))
-    for p in GoToolsSettings.get().ospath.split(os.pathsep):
+    searchpaths = list(map(lambda x: os.path.join(x, 'bin'), GoToolsSettings.instance().get('gopath').split(os.pathsep)))
+    for p in GoToolsSettings.instance().get('ospath').split(os.pathsep):
       searchpaths.append(p)
-    searchpaths.append(os.path.join(GoToolsSettings.get().goroot, 'bin'))
-    searchpaths.append(GoToolsSettings.get().gorootbin)
+    searchpaths.append(os.path.join(GoToolsSettings.instance().get('goroot'), 'bin'))
+    searchpaths.append(GoToolsSettings.instance().get('gorootbin'))
 
     if platform.system() == "Windows":
       tool = tool + ".exe"
@@ -111,9 +111,9 @@ class ToolRunner():
   @staticmethod
   def env():
     env = os.environ.copy()
-    env["PATH"] = GoToolsSettings.get().ospath
-    env["GOPATH"] = GoToolsSettings.get().gopath
-    env["GOROOT"] = GoToolsSettings.get().goroot
+    env["PATH"] = GoToolsSettings.instance().get('ospath')
+    env["GOPATH"] = GoToolsSettings.instance().get('gopath')
+    env["GOROOT"] = GoToolsSettings.instance().get('goroot')
     return env
 
   @staticmethod
@@ -125,13 +125,13 @@ class ToolRunner():
     return si
 
   @staticmethod
-  def run(tool, args=[], stdin=None, timeout=5, cwd=None):
+  def run(tool, args=[], stdin=None, timeout=5, cwd=None, quiet=True):
     toolpath = None
-    searchpaths = list(map(lambda x: os.path.join(x, 'bin'), GoToolsSettings.get().gopath.split(os.pathsep)))
-    for p in GoToolsSettings.get().ospath.split(os.pathsep):
+    searchpaths = list(map(lambda x: os.path.join(x, 'bin'), GoToolsSettings.instance().get('gopath').split(os.pathsep)))
+    for p in GoToolsSettings.instance().get('ospath').split(os.pathsep):
       searchpaths.append(p)
-    searchpaths.append(os.path.join(GoToolsSettings.get().goroot, 'bin'))
-    searchpaths.append(GoToolsSettings.get().gorootbin)
+    searchpaths.append(os.path.join(GoToolsSettings.instance().get('goroot'), 'bin'))
+    searchpaths.append(GoToolsSettings.instance().get('gorootbin'))
 
     if platform.system() == "Windows":
       tool = tool + ".exe"
@@ -148,16 +148,12 @@ class ToolRunner():
 
     cmd = [toolpath] + args
     try:
-      Logger.log("spawning process...")
-
       env = os.environ.copy()
-      env["PATH"] = GoToolsSettings.get().ospath
-      env["GOPATH"] = GoToolsSettings.get().gopath
-      env["GOROOT"] = GoToolsSettings.get().goroot
+      env["PATH"] = GoToolsSettings.instance().get('ospath')
+      env["GOPATH"] = GoToolsSettings.instance().get('gopath')
+      env["GOROOT"] = GoToolsSettings.instance().get('goroot')
 
-      Logger.log("\tcommand: " + " ".join(cmd))
-      Logger.log("\tGOPATH:  " + GoToolsSettings.get().gopath)
-
+      Logger.log('Running process: {cmd}'.format(cmd=' '.join(cmd)))
 
       # Hide popups on Windows
       si = None
@@ -170,11 +166,12 @@ class ToolRunner():
       stdout, stderr = p.communicate(input=stdin, timeout=timeout)
       p.wait(timeout=timeout)
       elapsed = round(time.time() - start)
-      Logger.log("process returned ({0}) in {1} seconds".format(str(p.returncode), str(elapsed)))
-      stderr = stderr.decode("utf-8")
-      if len(stderr) > 0:
-        Logger.log("stderr:\n{0}".format(stderr))
-      return stdout.decode("utf-8"), stderr, p.returncode
+      Logger.log("Process returned ({0}) in {1} seconds".format(str(p.returncode), str(elapsed)))
+      if not quiet:
+        stderr = stderr.decode("utf-8")
+        if len(stderr) > 0:
+          Logger.log("stderr:\n{0}".format(stderr))
+      return stdout.decode('utf-8'), stderr.decode('utf-8'), p.returncode
     except subprocess.CalledProcessError as e:
       raise
 
