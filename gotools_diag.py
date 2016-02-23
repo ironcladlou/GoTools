@@ -26,22 +26,22 @@ class DiagnosticManager():
   engines = {}
   renderers = {}
 
-  @staticmethod
-  def engine(window):
-    DiagnosticManager.lock.acquire()
+  @classmethod
+  def get(cls, window):
+    cls.lock.acquire()
     try:
-      if not window.id() in DiagnosticManager.engines:
+      if not window.id() in cls.engines:
         engine = DiagnosticEngine(window)
         renderer = DiagnosticRenderer(window, engine)
         #renderer.start()
-        DiagnosticManager.engines[window.id()] = {
+        cls.engines[window.id()] = {
           'engine': engine,
           'renderer': renderer
         }
         Logger.log('Created diagnostic engine and renderer for window {0}'.format(window.id()))
-      return DiagnosticManager.engines[window.id()]['engine']
+      return cls.engines[window.id()]['engine']
     finally:
-      DiagnosticManager.lock.release()
+      cls.lock.release()
 
 class Diagnostic():
   def __init__(self, path=None, line=0, column=0, message=None):
@@ -70,7 +70,7 @@ class DiagnosticCache():
       'timestamp': int(time.time()),
       'entries': entries
     }
-    Logger.log('set diagnostics for {filename}/{kind}:'.format(filename=filename, kind=kind))
+    Logger.log('set diagnostics for {filename} ({kind}):'.format(filename=filename, kind=kind))
     for entry in entries:
       Logger.log('  ' + str(entry))
     self.lock.release()
@@ -80,8 +80,8 @@ class DiagnosticCache():
     if not filename in self.cache:
       return
     self.cache[filename].pop(kind, None)
-    Logger.log('cleared diagnostics for {filename}/{kind}'.format(filename=filename, kind=kind))
-    self.local.release()
+    Logger.log('cleared diagnostics for {filename} ({kind})'.format(filename=filename, kind=kind))
+    self.lock.release()
 
 class DiagnosticEngine():
   def __init__(self, window):
@@ -109,7 +109,7 @@ class DiagnosticEngine():
     p = subprocess.Popen(
       cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
       env=ToolRunner.env(), startupinfo=ToolRunner.startupinfo(), cwd=cwd)
-    stdout, _ = p.communicate(timeout=20)
+    stdout, stderr = p.communicate(timeout=20)
     p.wait(timeout=20)
 
     errors = []
@@ -130,7 +130,7 @@ class DiagnosticEngine():
     if len(errors) > 0:
       self.cache.set_diagnostics(filename=filename, kind='compiler', entries=errors)
     else:
-      self.cache.clear_diagnostics(filename)
+      self.cache.clear_diagnostics(filename, 'compiler')
 
     self.log("finished checking {file} (exited: {rc}, compiler errors: {count})".format(
       file=filename,
@@ -209,12 +209,12 @@ class GotoolsCheckListener(sublime_plugin.EventListener):
   def on_post_save_async(self, view):
     if not GoBuffers.is_go_source(view):
       return
-    DiagnosticManager.engine(view.window()).check(view)
+    DiagnosticManager.get(view.window()).check(view)
 
   def on_load_async(self, view):
     if not GoBuffers.is_go_source(view):
       return
-    DiagnosticManager.engine(view.window()).check(view)
+    DiagnosticManager.get(view.window()).check(view)
 
 ErrorPopupHtmlTemplate = '''
 <style>
