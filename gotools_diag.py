@@ -16,9 +16,9 @@ from .gotools_util import ToolRunner
 from .gotools_util import TimeoutThread
 from .gotools_settings import GoToolsSettings
 
-def plugin_unloaded():
-  for _, r in DiagnosticManager.renderers.items():
-    r.stop()
+# def plugin_unloaded():
+#   for _, r in DiagnosticManager.renderers.items():
+#     r.stop()
 
 # TODO: extract so other systems can feed events
 class DiagnosticManager():
@@ -205,16 +205,16 @@ class DiagnosticRenderer():
         return
     view.hide_popup()
 
-class GotoolsCheckListener(sublime_plugin.EventListener):
-  def on_post_save_async(self, view):
-    if not GoBuffers.is_go_source(view):
-      return
-    DiagnosticManager.get(view.window()).check(view)
+# class GotoolsCheckListener(sublime_plugin.EventListener):
+#   def on_post_save_async(self, view):
+#     if not GoBuffers.is_go_source(view):
+#       return
+#     DiagnosticManager.get(view.window()).check(view)
 
-  def on_load_async(self, view):
-    if not GoBuffers.is_go_source(view):
-      return
-    DiagnosticManager.get(view.window()).check(view)
+#   def on_load_async(self, view):
+#     if not GoBuffers.is_go_source(view):
+#       return
+#     DiagnosticManager.get(view.window()).check(view)
 
 ErrorPopupHtmlTemplate = '''
 <style>

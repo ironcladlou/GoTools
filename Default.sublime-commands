@@ -68,6 +68,10 @@
     }
   },
   {
+    "caption": "GoTools: Find References",
+    "command": "gotools_find_references"
+  },
+  {
     "caption": "GoTools: Test Directory",
     "command": "gotools_test_directory"
   },
@@ -86,5 +90,9 @@
   {
     "caption": "GoTools: Toggle Build Output",
     "command": "gotools_toggle_build_output"
+  },
+  {
+    "caption": "GoTools: Toggle Find References Output",
+    "command": "gotools_toggle_find_references_output"
   }
 ]
