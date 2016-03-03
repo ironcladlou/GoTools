@@ -2,80 +2,66 @@ import sublime
 import sublime_plugin
 import re
 import os
-import threading
-import time
 import subprocess
-from contextlib import contextmanager
 
-from .gotools_util import Buffers
+from .gotools_settings import GoToolsSettings
 from .gotools_util import GoBuffers
 from .gotools_util import Logger
-from .gotools_util import ToolRunner
-from .gotools_engine import Engine
-from .gotools_engine import EngineManager
-from .gotools_settings import GoToolsSettings
+from .gotools_util import Panel
 
-def plugin_loaded():
-  EngineManager.register(TestEngine.Label, lambda window: TestEngine(window))
+class Tester():
+  Panel = 'gotools.test'
+  ErrorPattern = r'^(.*\.go):(\d+):()(.*)$'
 
-def plugin_unloaded():
-  EngineManager.unregister(TestEngine.Label)
-
-class TestEngine():
-  Label = 'test'
+  recent_tests = {}
 
   def __init__(self, window):
-    self.engine = Engine(window, TestEngine.Label)
-    self.last_test = None
-
-  @property
-  def name(self):
-    return self.engine.name
-
-  def test_directory(self, path):
-    self.engine.start_worker(name='test_directory', target=lambda: self.run_test(path))
-
-  def test_function(self, path, func):
-    self.engine.start_worker(name='test_function', target=lambda: self.run_test(path, func))
+    self.panel = Panel(window, Tester.ErrorPattern, Tester.Panel)
+    self.window = window
 
   def repeat_test(self):
-    last_test = self.last_test
-    if not last_test:
-      self.log("No previous test recorded")
+    if not self.window.id() in Tester.recent_tests:
+      #self.log("No previous test recorded")
       return
-    self.engine.start_worker(name='repeat_test', target=lambda: self.run_test(last_test['path'], last_test['func']))
+    last_test = Tester.recent_tests[self.window.id()]
+    self.test(last_test['path'], last_test['func'])
 
-  def run_test(self, path, func='.*'):
-    self.engine.log("testing {path} (func: {func})".format(path=path, func=func))
-    cmd = [ToolRunner.tool_path("go")] + ["test", "-v", "-timeout", GoToolsSettings.instance().get('test_timeout'), "-run", "^{0}$".format(func), "."]
-    self.engine.clear_panel()
-    self.engine.show_panel()
-    self.engine.log_panel('testing {file} (functions: {run})'.format(file=os.path.basename(path), run=func))
+  def test(self, path, func='.*'):
+    cmd = [GoToolsSettings.instance().tool_path("go")] + ["test", "-v", "-timeout", GoToolsSettings.instance().get('test_timeout'), "-run", "^{0}$".format(func), "."]
+    self.panel.clear()
+    self.panel.show()
+    self.panel.log('testing {file} (functions: {run})'.format(file=os.path.basename(path), run=func))
     p = subprocess.Popen(
       cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-      env=ToolRunner.env(), startupinfo=ToolRunner.startupinfo(), cwd=path)
+      env=GoToolsSettings.instance().tool_env(), startupinfo=GoToolsSettings.instance().tool_startupinfo(), cwd=path)
     # TODO: this is reliant on the go timeout; readline could block forever
+    # TODO: fix timeoutes
+    project_path = GoToolsSettings.instance().get('project_path')
     for line in iter(p.stdout.readline, b''):
-      self.engine.append_panel(line.decode("utf-8"))
+      decoded = line.decode("utf-8")
+      # Expand relative paths from the project path
+      match = re.match(r'^\t(.*\.go)(:\d+:.*)$', decoded)
+      if match:
+        decoded = '{0}{1}\n'.format(os.path.normpath(os.path.join(path, match.group(1).lstrip())), match.group(2))
+      self.panel.append(decoded)
     p.wait(timeout=10)
-    self.engine.log_panel("finished tests (exited: {rc})".format(rc=p.returncode))
-    self.last_test = {'path': path, 'func': func}
+    self.panel.log("finished tests (exited: {rc})".format(rc=p.returncode))
+    Tester.recent_tests[self.window.id()] = {'path': path, 'func': func}
 
 class GotoolsToggleTestOutput(sublime_plugin.WindowCommand):
   def run(self):
-    EngineManager.engine(self.window, TestEngine.Label).engine.show_panel()
+    self.window.run_command("show_panel", {"panel": 'output.{name}'.format(name=Tester.Panel)})
 
 class GotoolsRepeatTest(sublime_plugin.WindowCommand):
   def run(self):
-    EngineManager.engine(self.window, TestEngine.Label).repeat_test()
+    sublime.set_timeout_async(lambda: Tester(self.window).repeat_test())
 
 class GotoolsTestDirectory(sublime_plugin.TextCommand):
   def is_enabled(self):
     return GoBuffers.is_go_source(self.view)
 
   def run(self, edit):
-    engine = EngineManager.engine(self.window, TestEngine.Label)
-    engine.test_directory(os.path.dirname(self.view.file_name()))
+    sublime.set_timeout_async(lambda: Tester(self.view.window()).test(os.path.dirname(self.view.file_name())))
 
 class GotoolsTestFunction(sublime_plugin.TextCommand):
   def is_enabled(self):
@@ -86,5 +72,4 @@ class GotoolsTestFunction(sublime_plugin.TextCommand):
     if len(func_name) == 0:
       Logger.log("no function found near cursor")
       return
-    engine = EngineManager.engine(self.view.window(), TestEngine.Label)
-    engine.test_function(os.path.dirname(self.view.file_name()), func_name)
+    sublime.set_timeout_async(lambda: Tester(self.view.window()).test(path=os.path.dirname(self.view.file_name()), func=func_name))

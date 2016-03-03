@@ -86,6 +86,8 @@ class GoToolsSettings():
       return self.get_project_path()
     if key == 'install_packages':
       return self.get_setting('install_packages', [])
+    if key == 'build_timeout':
+      return self.get_setting('build_timeout', 180)
     if key == 'gopath':
       return self.get_gopath()
     if key == 'goroot':
@@ -231,3 +233,39 @@ class GoToolsSettings():
       if os.path.isfile(candidate):
         return candidate
     raise Exception("couldn't find the go binary in path: {0}".format(path))
+
+  def tool_env(self):
+    env = os.environ.copy()
+    env["PATH"] = self.get('ospath')
+    env["GOPATH"] = self.get('gopath')
+    env["GOROOT"] = self.get('goroot')
+    return env
+
+  def tool_startupinfo(self):
+    si = None
+    if platform.system() == "Windows":
+      si = subprocess.STARTUPINFO()
+      si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    return si
+
+  def tool_path(self, tool):
+    toolpath = None
+    searchpaths = list(map(lambda x: os.path.join(x, 'bin'), self.get('gopath').split(os.pathsep)))
+    for p in self.get('ospath').split(os.pathsep):
+      searchpaths.append(p)
+    searchpaths.append(os.path.join(self.get('goroot'), 'bin'))
+    searchpaths.append(self.get('gorootbin'))
+
+    if platform.system() == "Windows":
+      tool = tool + ".exe"
+
+    for path in searchpaths:
+      candidate = os.path.join(path, tool)
+      if os.path.isfile(candidate):
+        toolpath = candidate
+        break
+
+    if not toolpath:
+      raise Exception("couldn't find tool '{0}' in any of:\n{1}".format(tool, "\n".join(searchpaths)))
+
+    return toolpath

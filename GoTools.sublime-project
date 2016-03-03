@@ -16,7 +16,7 @@
 
       // A custom GOPATH for this project; ${gopath} is expanded by the global
       // settings value.
-      "gopath": "${project_file_dir}/example/go",
+      "gopath": "${project_file_dir}/example/go:${gopath}",
 
       "install_packages": [
         "github.com/ironcladlou/gotools-example/cmd/gotools-example-1",

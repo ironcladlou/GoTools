@@ -24,7 +24,7 @@ class GotoolsOracleCommand(sublime_plugin.TextCommand):
     # configured.
     # TODO: put into a utility
     package_scope = []
-    for p in GoToolsSettings.instance().get('build_packages'):
+    for p in GoToolsSettings.instance().get('install_packages'):
       package_scope.append(os.path.join(GoToolsSettings.instance().get('project_package'), p))
     for p in GoToolsSettings.instance().get('test_packages'):
       package_scope.append(os.path.join(GoToolsSettings.instance().get('project_package'), p))

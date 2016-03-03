@@ -175,64 +175,29 @@ class ToolRunner():
     except subprocess.CalledProcessError as e:
       raise
 
-class TimeoutThread(threading.Thread):
-  should_stop = False
-  last_poke = 0
+class Panel():
+  def __init__(self, window, result_file_regex, name):
+    panel = window.create_output_panel(name)
+    panel.set_read_only(True)
+    panel.set_scratch(True)
+    panel.settings().set("result_file_regex", result_file_regex)
+    self.panel = panel
+    self.name = name
+    self.window = window
 
-  _IdentData = namedtuple("_IdentData", "call_time callback args kwargs")
+  def clear(self):
+    self.panel.set_read_only(False)
+    self.panel.run_command("select_all")
+    self.panel.run_command("right_delete")
+    self.panel.set_read_only(True)
 
-  def __init__(self, sleep=0.1, default_ident=None, default_timeout=None,
-               default_callback=None, *args, **kwargs):
-    super(TimeoutThread, self).__init__(*args, **kwargs)
+  def append(self, chars):
+    self.panel.set_read_only(False)
+    self.panel.run_command('append', {'characters': chars, 'scroll_to_end': True})
+    self.panel.set_read_only(True)
 
-    self.sleep = sleep
-    self.default_ident = default_ident
-    self.default_timeout = default_timeout
-    self.default_callback = default_callback
+  def show(self):
+    self.window.run_command("show_panel", {"panel": 'output.{name}'.format(name=self.name)})
 
-    self.ident_map = {}
-    self.lock = threading.Lock()
-
-  def run(self):
-    while not self.should_stop:
-      time.sleep(self.sleep)
-
-      if not self.ident_map:
-          continue
-
-      # Defer callbacks to call so that we acquire the lock for as little
-      # time as necessary.
-      to_call = {}
-
-      with self.lock:
-        for ident, data in self.ident_map.items():
-          if data.call_time < time.time():
-            to_call[ident] = data
-
-        for key in to_call:
-          del self.ident_map[key]
-
-      # Run in another thread?
-      for data in to_call.values():
-        data.callback(*data.args, **data.kwargs)
-
-  def queue_stop(self):
-    """Set a flag to signal the desire of termination.
-    """
-    self.should_stop = True
-
-  def poke(self, ident=None, timeout=None, callback=None, args=[], kwargs={}):
-    """TODOC"""
-    ident    = ident or self.default_ident
-    timeout  = timeout or self.default_timeout
-    callback = callback or self.default_callback
-    if timeout is None:
-      raise ValueError("Must provide timeout since no default has been set")
-    if callback is None:
-      raise ValueError("Must provide callback since no default has been set")
-
-    data = self._IdentData(time.time() + timeout, callback, args, kwargs)
-
-    with self.lock:
-      self.ident_map[ident] = data
-
+  def log(self, msg):
+    self.append('[{name}> {msg}]\n'.format(name=self.name, msg=msg))
