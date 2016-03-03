@@ -1,7 +1,3 @@
-### :warning: This project is no longer maintained. :warning:
-
-I recommend [Visual Studio Code](https://code.visualstudio.com) with the [vscode-go](https://github.com/Microsoft/vscode-go) extension for a nicer Go programming experience.
-
 # GoTools
 
 GoTools is a [Go programming language](http://www.golang.org) plugin for [Sublime Text 3](http://www.sublimetext.com) inspired by [vim-go](https://github.com/fatih/vim-go). Rather than attempting to reinvent various supporting IDE components, it provides integration with existing community-supported tools.
@@ -14,7 +10,7 @@ GoTools is a [Go programming language](http://www.golang.org) plugin for [Sublim
 * Build and test integration
 * Source analysis (using [oracle](https://godoc.org/golang.org/x/tools/oracle))
 * Identifier renaming (using [gorename](https://godoc.org/golang.org/x/tools/cmd/gorename))
-* Improved syntax support (borrowed from [GoSublime](https://github.com/DisposaBoy/GoSublime))
+* Fast symbol reference find using [go-find-references](https://github.com/lukehoban/go-find-references)
 
 ### Prerequisites
 
@@ -25,6 +21,7 @@ GoTools will attempt to find all external Go tools (`oracle`, `gofmt`, `gocode`,
     go get -u -v golang.org/x/tools/cmd/goimports
     go get -u -v golang.org/x/tools/cmd/oracle
     go get -u -v golang.org/x/tools/cmd/gorename
+    go get -u -v github.com/lukehoban/go-find-references
 
 GoTools is only tested with Go 1.4. Note that `gofmt` is now included with the Go distribution, and any `gofmt` installed to `GOPATH` is likely from an old Go version and should probably be removed.
 
