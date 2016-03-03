@@ -6,6 +6,7 @@ import time
 import subprocess
 
 from .gotools_util import Panel
+from .gotools_util import Logger
 
 from .gotools_settings import GoToolsSettings
 
@@ -17,8 +18,12 @@ class Builder():
     self.window = window
     self.panel = Panel(window, Builder.ErrorPattern, Builder.Panel)
 
-  def install(self, packages):
+  def install(self, packages, clean=False):
     cmd = [GoToolsSettings.instance().tool_path('go'), 'install'] + packages
+    if clean:
+      #cmd = [GoToolsSettings.instance().tool_path('go'), 'install', '-a'] + packages
+      # TODO: go clean instead, -a is inappropriate unless building the stdlib
+      pass
     project_path = GoToolsSettings.instance().get('project_path')
     timeout = GoToolsSettings.instance().get('build_timeout')
     self.panel.clear()
@@ -27,8 +32,15 @@ class Builder():
       self.panel.log('installing {package}'.format(package=package))
     self.panel.log('timeout: {timeout}s'.format(timeout=timeout))
     p = subprocess.Popen(
-      cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-      env=GoToolsSettings.instance().tool_env(), startupinfo=GoToolsSettings.instance().tool_startupinfo(), cwd=project_path)
+      cmd,
+      cwd=project_path,
+      env=GoToolsSettings.instance().tool_env(),
+      shell=False,
+      startupinfo=GoToolsSettings.instance().tool_startupinfo(),
+      stdin=subprocess.PIPE,
+      stdout=subprocess.PIPE,
+      stderr=subprocess.STDOUT
+    )
     # TODO: this is reliant on the go timeout; readline could block forever
     # TODO: fix timeouts
     for line in iter(p.stdout.readline, b''):
@@ -36,7 +48,8 @@ class Builder():
       # Expand relative paths from the project path
       match = re.match(r'^(.*\.go)(:\d+:.*)$', decoded)
       if match:
-        decoded = '{0}{1}\n'.format(os.path.normpath(os.path.join(project_path, match.group(1))), match.group(2))
+        relative_path = match.group(1)
+        decoded = '{0}{1}\n'.format(os.path.normpath(os.path.join(project_path, relative_path)), match.group(2))
       self.panel.append(decoded)
     start = time.time()
     p.wait(timeout=timeout)
@@ -49,4 +62,6 @@ class GotoolsToggleBuildOutput(sublime_plugin.WindowCommand):
 
 class GotoolsInstall(sublime_plugin.WindowCommand):
   def run(self, *args, **kwargs):
-    sublime.set_timeout_async(lambda: Builder(self.window).install(GoToolsSettings.instance().get('install_packages')))
+    packages = GoToolsSettings.instance().get('install_packages')
+    clean = kwargs.get('clean') or False
+    sublime.set_timeout_async(lambda: Builder(self.window).install(packages=packages, clean=clean))
