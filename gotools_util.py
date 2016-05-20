@@ -69,7 +69,7 @@ class GoBuffers():
 class Logger():
   @staticmethod
   def log(msg):
-    if GoToolsSettings.instance().get('debug_enabled'):
+    if GoToolsSettings.debug_enabled():
       print("GoTools: DEBUG: {0}".format(msg))
 
   @staticmethod
@@ -79,101 +79,6 @@ class Logger():
   @staticmethod
   def status(msg):
     sublime.status_message("GoTools: " + msg)
-
-class MissingToolException(Exception):
-  def __init__(self):
-    Exception.__init__(self, *args, **kwargs)
-
-class ToolRunner():
-  @staticmethod
-  def tool_path(tool):
-    toolpath = None
-    searchpaths = list(map(lambda x: os.path.join(x, 'bin'), GoToolsSettings.instance().get('gopath').split(os.pathsep)))
-    for p in GoToolsSettings.instance().get('ospath').split(os.pathsep):
-      searchpaths.append(p)
-    searchpaths.append(os.path.join(GoToolsSettings.instance().get('goroot'), 'bin'))
-    searchpaths.append(GoToolsSettings.instance().get('gorootbin'))
-
-    if platform.system() == "Windows":
-      tool = tool + ".exe"
-
-    for path in searchpaths:
-      candidate = os.path.join(path, tool)
-      if os.path.isfile(candidate):
-        toolpath = candidate
-        break
-
-    if not toolpath:
-      raise MissingToolException("couldn't find tool '{0}' in any of:\n{1}".format(tool, "\n".join(searchpaths)))
-
-    return toolpath
-
-  @staticmethod
-  def env():
-    env = os.environ.copy()
-    env["PATH"] = GoToolsSettings.instance().get('ospath')
-    env["GOPATH"] = GoToolsSettings.instance().get('gopath')
-    env["GOROOT"] = GoToolsSettings.instance().get('goroot')
-    return env
-
-  @staticmethod
-  def startupinfo():
-    si = None
-    if platform.system() == "Windows":
-      si = subprocess.STARTUPINFO()
-      si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    return si
-
-  @staticmethod
-  def run(tool, args=[], stdin=None, timeout=5, cwd=None, quiet=True):
-    toolpath = None
-    searchpaths = list(map(lambda x: os.path.join(x, 'bin'), GoToolsSettings.instance().get('gopath').split(os.pathsep)))
-    for p in GoToolsSettings.instance().get('ospath').split(os.pathsep):
-      searchpaths.append(p)
-    searchpaths.append(os.path.join(GoToolsSettings.instance().get('goroot'), 'bin'))
-    searchpaths.append(GoToolsSettings.instance().get('gorootbin'))
-
-    if platform.system() == "Windows":
-      tool = tool + ".exe"
-
-    for path in searchpaths:
-      candidate = os.path.join(path, tool)
-      if os.path.isfile(candidate):
-        toolpath = candidate
-        break
-
-    if not toolpath:
-      Logger.log("Couldn't find Go tool '{0}' in:\n{1}".format(tool, "\n".join(searchpaths)))
-      raise Exception("Error running Go tool '{0}'; check the console logs for details".format(tool))
-
-    cmd = [toolpath] + args
-    try:
-      env = os.environ.copy()
-      env["PATH"] = GoToolsSettings.instance().get('ospath')
-      env["GOPATH"] = GoToolsSettings.instance().get('gopath')
-      env["GOROOT"] = GoToolsSettings.instance().get('goroot')
-
-      Logger.log('Running process: {cmd}'.format(cmd=' '.join(cmd)))
-
-      # Hide popups on Windows
-      si = None
-      if platform.system() == "Windows":
-        si = subprocess.STARTUPINFO()
-        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-
-      start = time.time()
-      p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, startupinfo=si, cwd=cwd)
-      stdout, stderr = p.communicate(input=stdin, timeout=timeout)
-      p.wait(timeout=timeout)
-      elapsed = round(time.time() - start)
-      Logger.log("Process returned ({0}) in {1} seconds".format(str(p.returncode), str(elapsed)))
-      if not quiet:
-        stderr = stderr.decode("utf-8")
-        if len(stderr) > 0:
-          Logger.log("stderr:\n{0}".format(stderr))
-      return stdout.decode('utf-8'), stderr.decode('utf-8'), p.returncode
-    except subprocess.CalledProcessError as e:
-      raise
 
 class Panel():
   def __init__(self, window, result_file_regex, name):

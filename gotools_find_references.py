@@ -1,11 +1,11 @@
 import sublime
 import sublime_plugin
 import os
+import subprocess
 
 from .gotools_util import Buffers
 from .gotools_util import GoBuffers
 from .gotools_util import Logger
-from .gotools_util import ToolRunner
 from .gotools_util import Panel
 from .gotools_settings import GoToolsSettings
 
@@ -18,13 +18,25 @@ class ReferenceFinder():
     self.panel = Panel(window, ReferenceFinder.LocationPattern, ReferenceFinder.Panel)
 
   def find(self, filename, offset, root):
-    args = ['-file', filename, '-offset', str(offset), 'root', root]
-    results, err, rc = ToolRunner.run("go-find-references", args)
-    if rc != 0:
-      raise Exception('Error finding references (rc={rc}): {err}'.format(rc=rc, err=err))
-
+    args = [GoToolsSettings.get_tool('go-find-references'), '-file', filename, '-offset', str(offset), 'root', root]
+    p = subprocess.Popen(
+      args,
+      env={
+        'GOROOT': GoToolsSettings.goroot(),
+        'GOPATH': GoToolsSettings.gopath()
+      },
+      shell=False,
+      stdout=subprocess.PIPE,
+      stderr=subprocess.STDOUT
+    )
+    stdout, stderr = p.communicate(timeout=30)
+    if p.returncode != 0:
+      Logger.log("find references exited {rc}".format(rc=p.returncode))
+      return
+    stdout = stdout.decode('utf-8')
+    
     self.panel.clear()
-    self.panel.append(results)
+    self.panel.append(stdout)
     self.panel.show()
 
 class GotoolsFindReferences(sublime_plugin.TextCommand):
@@ -42,8 +54,7 @@ class GotoolsFindReferences(sublime_plugin.TextCommand):
       filename, row, col, offset = Buffers.location_for_event(self.view, event)
     else:
       filename, row, col, offset, offset_end = Buffers.location_at_cursor(self.view)
-    project_path = GoToolsSettings.instance().get('project_path')
-    sublime.set_timeout_async(lambda: ReferenceFinder(self.view.window()).find(filename, offset, project_path), 0)
+    sublime.set_timeout_async(lambda: ReferenceFinder(self.view.window()).find(filename, offset, GoToolsSettings.project_path()), 0)
 
 class GotoolsToggleFindReferencesOutput(sublime_plugin.WindowCommand):
   def run(self):

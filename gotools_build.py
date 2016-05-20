@@ -19,25 +19,24 @@ class Builder():
     self.panel = Panel(window, Builder.ErrorPattern, Builder.Panel)
 
   def install(self, packages, clean=False):
-    cmd = [GoToolsSettings.instance().tool_path('go'), 'install'] + packages
+    cmd = [GoToolsSettings.get_tool('go'), 'install'] + packages
     if clean:
       #cmd = [GoToolsSettings.instance().tool_path('go'), 'install', '-a'] + packages
       # TODO: go clean instead, -a is inappropriate unless building the stdlib
       pass
-    project_path = GoToolsSettings.instance().get('project_path')
-    timeout = GoToolsSettings.instance().get('build_timeout')
+    project_path = GoToolsSettings.project_path()
+    timeout = GoToolsSettings.build_timeout()
     self.panel.clear()
     self.panel.show()
-    for package in packages:
-      self.panel.log('installing {package}'.format(package=package))
-    self.panel.log('timeout: {timeout}s'.format(timeout=timeout))
+    self.panel.log('installing {package} (timeout: {timeout})'.format(package=' '.join(packages), timeout=timeout))
     p = subprocess.Popen(
       cmd,
       cwd=project_path,
-      env=GoToolsSettings.instance().tool_env(),
+      env={
+        'GOPATH': GoToolsSettings.gopath(),
+        'GOROOT': GoToolsSettings.goroot()
+      },
       shell=False,
-      startupinfo=GoToolsSettings.instance().tool_startupinfo(),
-      stdin=subprocess.PIPE,
       stdout=subprocess.PIPE,
       stderr=subprocess.STDOUT
     )
@@ -62,6 +61,6 @@ class GotoolsToggleBuildOutput(sublime_plugin.WindowCommand):
 
 class GotoolsInstall(sublime_plugin.WindowCommand):
   def run(self, *args, **kwargs):
-    packages = GoToolsSettings.instance().get('install_packages')
+    packages = GoToolsSettings.project_packages()
     clean = kwargs.get('clean') or False
     sublime.set_timeout_async(lambda: Builder(self.window).install(packages=packages, clean=clean))

@@ -27,16 +27,23 @@ class Tester():
     self.test(last_test['path'], last_test['func'])
 
   def test(self, path, func='.*'):
-    cmd = [GoToolsSettings.instance().tool_path("go")] + ["test", "-v", "-timeout", GoToolsSettings.instance().get('test_timeout'), "-run", "^{0}$".format(func), "."]
+    cmd = [GoToolsSettings.get_tool('go'), 'test', '-v', '-timeout', GoToolsSettings.test_timeout(), '-run', "^{0}$".format(func), '.']
     self.panel.clear()
     self.panel.show()
     self.panel.log('testing {file} (functions: {run})'.format(file=os.path.basename(path), run=func))
     p = subprocess.Popen(
-      cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-      env=GoToolsSettings.instance().tool_env(), startupinfo=GoToolsSettings.instance().tool_startupinfo(), cwd=path)
+      cmd,
+      cwd=path,
+      env={
+        'GOPATH': GoToolsSettings.gopath(),
+        'GOROOT': GoToolsSettings.goroot()
+      },
+      stdout=subprocess.PIPE,
+      stderr=subprocess.STDOUT
+    )
     # TODO: this is reliant on the go timeout; readline could block forever
     # TODO: fix timeoutes
-    project_path = GoToolsSettings.instance().get('project_path')
+    project_path = GoToolsSettings.project_path()
     for line in iter(p.stdout.readline, b''):
       decoded = line.decode("utf-8")
       # Expand relative paths from the project path

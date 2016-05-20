@@ -2,11 +2,11 @@ import sublime
 import sublime_plugin
 import os
 import json
+import subprocess
 
 from .gotools_util import Buffers
 from .gotools_util import GoBuffers
 from .gotools_util import Logger
-from .gotools_util import ToolRunner
 from .gotools_settings import GoToolsSettings
 
 class GotoolsGotoDef(sublime_plugin.TextCommand):
@@ -28,7 +28,7 @@ class GotoolsGotoDef(sublime_plugin.TextCommand):
     else:
       filename, row, col, offset, offset_end = Buffers.location_at_cursor(self.view)
 
-    backend = GoToolsSettings.instance().get('goto_def_backend') if GoToolsSettings.instance().get('goto_def_backend') else ""
+    backend = GoToolsSettings.goto_def_backend()
     try:
       if backend == "oracle":
         file, row, col = self.get_oracle_location(filename, offset)
@@ -47,9 +47,10 @@ class GotoolsGotoDef(sublime_plugin.TextCommand):
       Logger.status("godef failed: Please enable debugging and check console log")
       return
     
-    Logger.log("opening definition at " + file + ":" + str(row) + ":" + str(col))
+    location = '{0}:{1}:{2}'.format(file, str(row), str(col))
+    Logger.log("opening definition at {0}".format(location))
     w = self.view.window()
-    new_view = w.open_file(file + ':' + str(row) + ':' + str(col), sublime.ENCODED_POSITION)
+    new_view = w.open_file(location, sublime.ENCODED_POSITION)
     group, index = w.get_view_index(new_view)
     if group != -1:
         w.focus_group(group)
@@ -90,11 +91,20 @@ class GotoolsGotoDef(sublime_plugin.TextCommand):
     return [file, row, col]
 
   def get_godef_location(self, filename, offset):
-    location, err, rc = ToolRunner.run("godef", ["-f", filename, "-o", str(offset)])
-    if rc != 0:
-      raise Exception("no definition found")
-
-    Logger.log("godef output:\n" + location.rstrip())
+    p = subprocess.Popen(
+      [GoToolsSettings.get_tool('godef'), '-f', filename, '-o', str(offset)],
+      env={
+        'GOPATH': GoToolsSettings.gopath()
+      },
+      shell=False,
+      stdout=subprocess.PIPE,
+      stderr=subprocess.STDOUT
+    )
+    stdout, stderr = p.communicate(timeout=5)
+    stdout = stdout.decode('utf-8')
+    if p.returncode != 0:
+      Logger.log("godef exited {rc}: {out}".format(rc=p.returncode, out=stdout))
+    location = stdout
 
     # godef is sometimes returning this junk as part of the output,
     # so just cut anything prior to the first path separator
